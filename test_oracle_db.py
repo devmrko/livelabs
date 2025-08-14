@@ -8,12 +8,20 @@ import logging
 import os
 from utils.oracle_db import DatabaseManager
 
-# Configure logging
+# Configure logging first
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# Try to load environment variables from .env file
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+    logger.info("Loaded environment variables from .env file")
+except ImportError:
+    logger.info("python-dotenv not available, using system environment variables")
 
 def test_livelabs_workshops_query():
     """Test querying the admin.livelabs_workshops2 table"""
@@ -31,21 +39,24 @@ def test_livelabs_workshops_query():
         # Test 2: Get first 5 workshops with basic info
         logger.info("\n=== Testing Workshop Data Query ===")
         sample_query = """
-        SELECT workshop_id, title, description, created_date 
+        SELECT id, title, description, author, difficulty, category, duration_estimate
         FROM admin.livelabs_workshops2 
         WHERE ROWNUM <= 5
-        ORDER BY created_date DESC
+        ORDER BY id DESC
         """
         sample_results = db_manager.execute_query(sample_query, fetch_all=True)
         
         if sample_results:
             logger.info(f"Found {len(sample_results)} sample workshops:")
             for i, row in enumerate(sample_results, 1):
-                workshop_id, title, description, created_date = row
+                workshop_id, title, description, author, difficulty, category, duration = row
                 logger.info(f"  {i}. Workshop ID: {workshop_id}")
                 logger.info(f"     Title: {title[:100]}{'...' if title and len(title) > 100 else ''}")
-                logger.info(f"     Description: {description[:150]}{'...' if description and len(description) > 150 else ''}")
-                logger.info(f"     Created: {created_date}")
+                logger.info(f"     Author: {author}")
+                logger.info(f"     Difficulty: {difficulty}")
+                logger.info(f"     Category: {category}")
+                logger.info(f"     Duration: {duration}")
+                logger.info(f"     Description: {description[:150] if description else 'No description'}{'...' if description and len(description) > 150 else ''}")
                 logger.info("")
         else:
             logger.info("No workshops found in the table")
@@ -84,20 +95,32 @@ def test_specific_workshop_query(workshop_id=None):
         if workshop_id:
             logger.info(f"=== Testing Specific Workshop Query (ID: {workshop_id}) ===")
             specific_query = """
-            SELECT workshop_id, title, description, content, created_date, updated_date
+            SELECT id, title, description, text_content, author, difficulty, category, duration_estimate, created_at
             FROM admin.livelabs_workshops2 
-            WHERE workshop_id = :workshop_id
+            WHERE id = :workshop_id
             """
             result = db_manager.execute_query(specific_query, params={'workshop_id': workshop_id}, fetch_one=True)
             
             if result:
-                workshop_id, title, description, content, created_date, updated_date = result
+                workshop_id, title, description, text_content, author, difficulty, category, duration, created_at = result
                 logger.info(f"Workshop ID: {workshop_id}")
                 logger.info(f"Title: {title}")
-                logger.info(f"Description: {description[:200]}{'...' if description and len(description) > 200 else ''}")
-                logger.info(f"Content length: {len(content) if content else 0} characters")
-                logger.info(f"Created: {created_date}")
-                logger.info(f"Updated: {updated_date}")
+                logger.info(f"Author: {author}")
+                logger.info(f"Difficulty: {difficulty}")
+                logger.info(f"Category: {category}")
+                logger.info(f"Duration: {duration}")
+                logger.info(f"Created: {created_at}")
+                logger.info(f"Description: {description[:200] if description else 'No description'}{'...' if description and len(description) > 200 else ''}")
+                # Handle CLOB field properly
+                if text_content:
+                    try:
+                        content_str = text_content.read()
+                        logger.info(f"Content length: {len(content_str)} characters")
+                        logger.info(f"Content preview: {content_str[:300]}{'...' if len(content_str) > 300 else ''}")
+                    except Exception as e:
+                        logger.info(f"Content: CLOB object (could not read: {e})")
+                else:
+                    logger.info("Content: None")
             else:
                 logger.info(f"No workshop found with ID: {workshop_id}")
         else:
@@ -126,7 +149,7 @@ if __name__ == "__main__":
         test_livelabs_workshops_query()
         
         # Optionally test a specific workshop (uncomment and modify as needed)
-        # test_specific_workshop_query(workshop_id=1070)
+        # test_specific_workshop_query(workshop_id=941)
         
         logger.info("All tests completed successfully!")
         
