@@ -36,7 +36,7 @@ class MongoManager:
         password_escaped = quote_plus(self.mongo_password)
         
         return (
-            f"mongodb://{user_escaped}:{password_escaped}@{self.host}:{self.port}/"
+            f"mongodb://{user_escaped}:{password_escaped}@{self.mongo_host}:{self.mongo_port}/"
             f"{user_escaped}?authMechanism=PLAIN&authSource=$external&ssl=true&retryWrites=false&loadBalanced=true"
         )
     
