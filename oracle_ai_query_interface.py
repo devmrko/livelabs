@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-Oracle SELECT AI Example
-Demonstrates using Oracle's SELECT AI feature to query database with natural language
+Oracle AI Query Interface
+Interactive interface for Oracle SELECT AI natural language database queries
+Provides command-line and programmatic access to AI-powered database querying
 """
 
 import logging
@@ -23,8 +24,8 @@ try:
 except ImportError:
     logger.info("python-dotenv not available, using system environment variables")
 
-class OracleSelectAI:
-    """Oracle SELECT AI query interface"""
+class OracleAIQueryInterface:
+    """Interactive interface for Oracle SELECT AI natural language queries"""
     
     def __init__(self):
         self.oracle_manager = None
@@ -100,7 +101,7 @@ class OracleSelectAI:
     
     def interactive_select_ai(self):
         """Interactive SELECT AI interface"""
-        logger.info("=== Oracle SELECT AI Interactive Interface ===")
+        logger.info("=== Oracle AI Query Interactive Interface ===")
         
         # Set AI profile first
         if not self.set_ai_profile():
@@ -147,7 +148,7 @@ class OracleSelectAI:
     
     def run_example_queries(self):
         """Run some example SELECT AI queries"""
-        logger.info("=== Running Example SELECT AI Queries ===")
+        logger.info("=== Running Example AI Queries ===")
         
         # Set AI profile first
         if not self.set_ai_profile():
@@ -183,8 +184,8 @@ class OracleSelectAI:
             logger.info("Oracle connection pool closed")
 
 def main():
-    """Main function"""
-    logger.info("Starting Oracle SELECT AI Example")
+    """Main function to run Oracle AI query interface"""
+    logger.info("Starting Oracle AI Query Interface")
     
     # Check environment variables
     required_env_vars = ["DB_USER", "DB_PASSWORD", "DB_DSN"]
@@ -194,17 +195,17 @@ def main():
         logger.error(f"Missing required environment variables: {missing_vars}")
         exit(1)
     
-    # Create SELECT AI interface
-    select_ai = OracleSelectAI()
+    # Create AI query interface
+    ai_interface = OracleAIQueryInterface()
     
     # Initialize connection
-    if not select_ai.initialize_connection():
+    if not ai_interface.initialize_connection():
         logger.error("❌ Failed to initialize connection")
         exit(1)
     
     try:
         # Choose mode
-        print("\nOracle SELECT AI Example")
+        print("\nOracle AI Query Interface")
         print("1. Run example queries")
         print("2. Interactive mode")
         print("3. Custom query")
@@ -212,19 +213,19 @@ def main():
         choice = input("\nChoose option (1-3): ").strip()
         
         if choice == "1":
-            select_ai.run_example_queries()
+            ai_interface.run_example_queries()
         elif choice == "2":
-            select_ai.interactive_select_ai()
+            ai_interface.interactive_select_ai()
         elif choice == "3":
             # Set AI profile first
-            if not select_ai.set_ai_profile():
+            if not ai_interface.set_ai_profile():
                 logger.error("Failed to set AI profile. Exiting.")
                 return
             
             # Get custom query
             custom_query = input("Enter your SELECT AI query: ").strip()
             if custom_query:
-                select_ai.execute_select_ai_query(custom_query)
+                ai_interface.execute_select_ai_query(custom_query)
             else:
                 print("No query provided.")
         else:
@@ -234,7 +235,7 @@ def main():
         logger.error(f"❌ Error: {e}")
         exit(1)
     finally:
-        select_ai.cleanup()
+        ai_interface.cleanup()
 
 if __name__ == "__main__":
     main()

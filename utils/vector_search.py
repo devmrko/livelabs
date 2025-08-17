@@ -106,11 +106,18 @@ class VectorSearchEngine:
             # Use Oracle's native vector_distance function with COSINE similarity
             # Handle CLOB columns using DBMS_LOB package
             query = """
-            SELECT w.id, w.mongo_id, w.title, 
-                   DBMS_LOB.SUBSTR(w.description, 4000, 1) AS description,
-                   w.author, w.difficulty, w.category, w.duration_estimate,
-                   DBMS_LOB.SUBSTR(w.text_content, 4000, 1) AS text_content,
-                   vector_distance(w.cohere4_embedding, :query_vector, COSINE) AS similarity
+            SELECT 
+                w.id,
+                w.mongo_id,
+                w.title,
+                'https://livelabs.oracle.com' || w.url AS url,
+                DBMS_LOB.SUBSTR(w.description, 4000, 1) AS description,
+                w.author,
+                w.difficulty,
+                w.category,
+                w.duration_estimate,
+                DBMS_LOB.SUBSTR(w.text_content, 4000, 1) AS text_content,
+                vector_distance(w.cohere4_embedding, :query_vector, COSINE) AS similarity
             FROM admin.livelabs_workshops2 w
             WHERE w.cohere4_embedding IS NOT NULL
             ORDER BY similarity
@@ -127,17 +134,19 @@ class VectorSearchEngine:
             if results:
                 workshops = []
                 for row in results:
+                    # Column order must match the SELECT above
                     workshop = {
                         'id': row[0],
                         'mongo_id': row[1],
                         'title': row[2],
-                        'description': row[3],
-                        'author': row[4],
-                        'difficulty': row[5],
-                        'category': row[6],
-                        'duration_estimate': row[7],
-                        'text_content': row[8],
-                        'similarity': row[9]  # Oracle's calculated similarity
+                        'url': row[3],
+                        'description': row[4],
+                        'author': row[5],
+                        'difficulty': row[6],
+                        'category': row[7],
+                        'duration_estimate': row[8],
+                        'text_content': row[9],
+                        'similarity': row[10]
                     }
                     workshops.append(workshop)
                 

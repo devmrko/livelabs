@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-Batch Job: MongoDB -> OCI Embeddings -> Oracle Database Update
-Selects workshops from MongoDB, generates embeddings via OCI, and updates Oracle DB
+Workshop Embedding Pipeline
+ETL pipeline that processes workshop data: MongoDB → OCI Embeddings → Oracle Vector Database
+Generates semantic embeddings for workshop content to enable vector-based search
 """
 
 import logging
@@ -29,8 +30,8 @@ try:
 except ImportError:
     logger.info("python-dotenv not available, using system environment variables")
 
-class BatchEmbeddingProcessor:
-    """Batch processor for MongoDB -> OCI Embeddings -> Oracle DB updates"""
+class WorkshopEmbeddingPipeline:
+    """ETL pipeline for processing workshop embeddings from MongoDB to Oracle Vector DB"""
     
     def __init__(self):
         self.mongo_manager = None
@@ -270,8 +271,8 @@ class BatchEmbeddingProcessor:
         }
 
 def main():
-    """Main function to run the batch processing"""
-    logger.info("Starting Batch Embedding Update Job")
+    """Main function to run the workshop embedding pipeline"""
+    logger.info("Starting Workshop Embedding Pipeline")
     
     # Check environment variables
     required_env_vars = [
@@ -284,25 +285,24 @@ def main():
         logger.error(f"Missing required environment variables: {missing_vars}")
         exit(1)
     
-    # Create processor
-    processor = BatchEmbeddingProcessor()
+    # Create pipeline
+    pipeline = WorkshopEmbeddingPipeline()
     
-    # Process with parameters (adjust as needed)
-    success = processor.process_workshops(
+    # Run pipeline with parameters (adjust as needed)
+    success = pipeline.process_workshops(
         #limit=50  # Process first 50 workshops (adjust or remove for all)
-
     )
     
     if success:
-        summary = processor.get_summary()
+        summary = pipeline.get_summary()
         logger.info("=== Processing Summary ===")
         logger.info(f"Total processed: {summary['processed_count']}")
         logger.info(f"Successfully updated: {summary['updated_count']}")
         logger.info(f"Errors: {summary['error_count']}")
         logger.info(f"Success rate: {summary['success_rate']:.2f}%")
-        logger.info("🎉 Batch processing completed successfully!")
+        logger.info("🎉 Workshop embedding pipeline completed successfully!")
     else:
-        logger.error("❌ Batch processing failed")
+        logger.error("❌ Workshop embedding pipeline failed")
         exit(1)
 
 if __name__ == "__main__":

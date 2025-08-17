@@ -1,0 +1,30 @@
+# Core web scraping and HTTP dependencies
+selenium==4.15.2
+webdriver-manager==4.0.1
+beautifulsoup4==4.12.2
+requests==2.31.0
+
+# Oracle Cloud Infrastructure and Database
+oci>=2.120.0
+cx_Oracle==8.3.0 
+oracledb
+
+# Database and data processing
+pymongo>=4.5.0
+numpy
+pandas>=2.0.0
+
+# FastAPI REST services
+fastapi>=0.104.0
+uvicorn>=0.24.0
+pydantic>=2.4.0
+
+# Streamlit web interface
+streamlit>=1.28.0
+
+# MCP (Model Context Protocol)
+mcp>=1.0.0
+
+# Configuration and utilities
+python-dotenv==1.0.0
+psutil

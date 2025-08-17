@@ -53,6 +53,10 @@ class MongoManager:
             logger.error(f"Failed to connect to MongoDB: {e}")
             return False
     
+    def initialize_connection(self):
+        """Initialize connection - alias for connect() for MCP services"""
+        return self.connect()
+    
     def insert_workshops(self, workshops):
         """Insert workshops into MongoDB collection"""
         if self.collection is None:

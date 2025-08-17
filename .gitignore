@@ -1,6 +1,7 @@
 .env
 /_archive/
-*.json
-*.txt
 */__pycache__/
-*.html
+/__pycache__/
+/data/
+/logs/
+/pids/

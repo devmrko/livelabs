@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-Import LiveLabs workshops to MongoDB - Refactored Version
-Uses common utilities for better maintainability and reusability
+Workshop Data Importer
+Imports LiveLabs workshop data from JSON files into MongoDB collections
+Provides a clean interface for workshop data ingestion with validation and reporting
 """
 
 import logging
@@ -12,8 +13,8 @@ from utils.workshop_parser import WorkshopParser
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-def import_workshops_to_mongo(json_filename="livelabs_workshops.json", collection_name="livelabs_workshops"):
-    """Import workshops from JSON file to MongoDB"""
+def import_workshop_data(json_filename="livelabs_workshops.json", collection_name="livelabs_workshops"):
+    """Import workshop data from JSON file to MongoDB with validation and reporting"""
     
     # Load workshops from JSON
     workshops = WorkshopParser.load_workshops_from_json(json_filename)
@@ -46,14 +47,14 @@ def import_workshops_to_mongo(json_filename="livelabs_workshops.json", collectio
     return success
 
 def main():
-    """Main function"""
+    """Main function to run workshop data import"""
     # Import workshops to MongoDB
-    success = import_workshops_to_mongo()
+    success = import_workshop_data()
     
     if success:
-        print("✅ Successfully imported workshops to MongoDB")
+        print("✅ Workshop data import completed successfully")
     else:
-        print("❌ Failed to import workshops to MongoDB")
+        print("❌ Workshop data import failed")
 
 if __name__ == "__main__":
     main() 

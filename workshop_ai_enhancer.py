@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """
-Import workshop texts from JSON to MongoDB with AI enhancement
+Workshop AI Enhancer
+Enhances workshop data using OCI GenAI and imports to MongoDB collections
+Provides AI-powered metadata extraction, categorization, and content enrichment
 """
 
 import json
@@ -24,8 +26,8 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-class WorkshopEnhancer:
-    """Enhance workshop data using OCI GenAI"""
+class WorkshopAIEnhancer:
+    """AI-powered workshop data enhancer using OCI GenAI for metadata extraction"""
     
     def __init__(self):
         self.model_id = "xai.grok-4"
@@ -193,8 +195,8 @@ class WorkshopEnhancer:
             'language': 'ko'
         }
 
-def import_workshop_texts_to_mongo(json_filename="workshop_texts_progress.json", collection_name="workshop_texts"):
-    """Import workshop texts from JSON file to MongoDB"""
+def import_raw_workshop_texts(json_filename="workshop_texts_progress.json", collection_name="workshop_texts"):
+    """Import raw workshop text data from JSON file to MongoDB without enhancement"""
     # Load workshop texts from JSON
     try:
         with open(json_filename, "r", encoding="utf-8") as f:
@@ -224,8 +226,8 @@ def import_workshop_texts_to_mongo(json_filename="workshop_texts_progress.json",
     mongo_manager.close()
     return success
 
-def import_enhanced_workshops_to_mongo(json_filename="workshop_texts_progress.json", collection_name="livelabs_workshops_json2"):
-    """Import enhanced workshop texts to MongoDB with AI enhancement - commits per transaction"""
+def import_ai_enhanced_workshops(json_filename="workshop_texts_progress.json", collection_name="livelabs_workshops_json2"):
+    """Import AI-enhanced workshop data to MongoDB with metadata extraction and categorization"""
     # Load workshop texts from JSON
     try:
         with open(json_filename, "r", encoding="utf-8") as f:
@@ -242,8 +244,8 @@ def import_enhanced_workshops_to_mongo(json_filename="workshop_texts_progress.js
     # Create MongoDB manager for enhanced collection
     mongo_manager = MongoManager(collection_name=collection_name)
     
-    # Create workshop enhancer
-    enhancer = WorkshopEnhancer()
+    # Create AI enhancer
+    enhancer = WorkshopAIEnhancer()
 
     # Process only successful workshop texts
     successful_workshops = [w for w in workshops if w.get("success")]
@@ -318,8 +320,8 @@ def import_enhanced_workshops_to_mongo(json_filename="workshop_texts_progress.js
     mongo_manager.close()
     return processed_count > 0
 
-def test_llm_enhancement():
-    """Test LLM enhancement with a sample workshop"""
+def test_ai_enhancement():
+    """Test AI enhancement capabilities with a sample workshop"""
     print("🧪 Testing LLM enhancement...")
     
     # Sample workshop data
@@ -345,13 +347,14 @@ def test_llm_enhancement():
         return False
 
 def main():
-    # Test LLM enhancement first
-    print("🧪 Testing LLM enhancement...")
-    llm_test_success = test_llm_enhancement()
+    """Main function to run workshop AI enhancement pipeline"""
+    # Test AI enhancement first
+    print("🧪 Testing AI enhancement...")
+    ai_test_success = test_ai_enhancement()
     
-    if not llm_test_success:
-        print("⚠️  LLM enhancement test failed. Proceeding with basic import only.")
-        success1 = import_workshop_texts_to_mongo()
+    if not ai_test_success:
+        print("⚠️  AI enhancement test failed. Proceeding with basic import only.")
+        success1 = import_raw_workshop_texts()
         if success1:
             print("✅ Successfully imported original workshop texts to MongoDB")
         else:
@@ -359,21 +362,21 @@ def main():
         return
     
     # Import original workshop texts
-    print("\n📥 Importing original workshop texts...")
-    success1 = import_workshop_texts_to_mongo()
+    print("\n📥 Importing raw workshop texts...")
+    success1 = import_raw_workshop_texts()
     
-    # Import enhanced workshop texts
-    print("\n🤖 Importing AI-enhanced workshop texts...")
-    success2 = import_enhanced_workshops_to_mongo()
+    # Import AI-enhanced workshop texts
+    print("\n🤖 Importing AI-enhanced workshop data...")
+    success2 = import_ai_enhanced_workshops()
     
     if success1 and success2:
-        print("✅ Successfully imported both original and enhanced workshop texts to MongoDB")
+        print("✅ Workshop AI enhancement pipeline completed successfully")
     elif success1:
-        print("✅ Successfully imported original workshop texts, but enhanced import failed")
+        print("✅ Raw workshop import succeeded, but AI enhancement failed")
     elif success2:
-        print("✅ Successfully imported enhanced workshop texts, but original import failed")
+        print("✅ AI-enhanced workshop import succeeded, but raw import failed")
     else:
-        print("❌ Failed to import workshop texts to MongoDB")
+        print("❌ Workshop AI enhancement pipeline failed")
 
 if __name__ == "__main__":
     main() 
