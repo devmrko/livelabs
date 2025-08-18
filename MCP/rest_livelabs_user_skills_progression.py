@@ -147,6 +147,74 @@ async def health_check():
         "mongodb_connected": "yes" if mongo_manager is not None else "no"
     }
 
+@app.get("/mcp/tools", response_model=Dict[str, Any])
+async def list_tools():
+    """Return available tools for this MCP service"""
+    return {
+        "tools": [
+            {
+                "name": "update_user_skills",
+                "description": "Update a user's skills or add new skills to their profile",
+                "parameters": {
+                    "user_id": {
+                        "type": "string", 
+                        "required": True, 
+                        "description": "User ID to update"
+                    },
+                    "skills": {
+                        "type": "array", 
+                        "required": True, 
+                        "description": "List of skills to add or update"
+                    },
+                    "skill_level": {
+                        "type": "string", 
+                        "required": False, 
+                        "default": "beginner", 
+                        "description": "Skill level: beginner, intermediate, advanced"
+                    }
+                },
+                "use_when": "User wants to add or update their skills",
+                "examples": [
+                    "add Python to my skills", 
+                    "I learned machine learning", 
+                    "update my Java level to advanced"
+                ]
+            },
+            {
+                "name": "mark_workshop_complete",
+                "description": "Mark a workshop as completed for a user",
+                "parameters": {
+                    "user_id": {
+                        "type": "string", 
+                        "required": True, 
+                        "description": "User ID"
+                    },
+                    "workshop_id": {
+                        "type": "string", 
+                        "required": True, 
+                        "description": "Workshop ID or name"
+                    },
+                    "completion_date": {
+                        "type": "string", 
+                        "required": False, 
+                        "description": "Completion date (ISO format)"
+                    }
+                },
+                "use_when": "User reports completing a workshop or course",
+                "examples": [
+                    "I completed the Docker workshop", 
+                    "finished AI fundamentals course", 
+                    "mark Oracle DB course as done"
+                ]
+            }
+        ],
+        "service_info": {
+            "name": "LiveLabs User Skills Progression API",
+            "version": "1.0.0",
+            "description": "User skills updates and workshop progression management for LiveLabs"
+        }
+    }
+
 @app.post("/skills/update")
 async def update_user_skills(request: UpdateUserSkillsRequest):
     """Update user skills in MongoDB user profile"""

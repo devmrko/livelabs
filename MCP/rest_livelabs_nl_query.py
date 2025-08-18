@@ -53,6 +53,7 @@ class UserProfilesResponse(BaseModel):
 
 class NaturalLanguageSearchRequest(BaseModel):
     natural_language_query: str  # Any free-form natural language query about users
+    top_k: Optional[int] = 10  # Number of results to return
 
 class UserSearchResponse(BaseModel):
     success: bool
@@ -119,6 +120,41 @@ async def health_check():
         "version": "1.0.0"
     }
 
+@app.get("/mcp/tools", response_model=Dict[str, Any])
+async def list_tools():
+    """Return available tools for this MCP service"""
+    return {
+        "tools": [
+            {
+                "name": "query_database_nl",
+                "description": "Query the database using natural language with Oracle SELECT AI",
+                "parameters": {
+                    "natural_language_query": {
+                        "type": "string", 
+                        "required": True, 
+                        "description": "Natural language query about users, skills, or workshops"
+                    },
+                    "top_k": {
+                        "type": "integer", 
+                        "required": False, 
+                        "description": "Number of results to return (default: 10)"
+                    }
+                },
+                "use_when": "User asks questions about data in natural language",
+                "examples": [
+                    "Who are the Python developers?", 
+                    "Show me users with cloud skills", 
+                    "What workshops has John completed?"
+                ]
+            }
+        ],
+        "service_info": {
+            "name": "LiveLabs Natural Language Query to Database API",
+            "version": "1.0.0",
+            "description": "Natural language query interface for user profiles using Oracle SELECT AI"
+        }
+    }
+
 
 
 
@@ -155,6 +191,7 @@ If this is about a specific user's skills or workshop history:
 3. Then analyze what they should learn or their current status
 
 If this is a general query, answer directly.
+Limit results to {request.top_k} items if applicable.
 
 Query: {escaped_query}"""
         

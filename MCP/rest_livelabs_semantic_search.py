@@ -9,7 +9,7 @@ import sys
 import json
 import logging
 import asyncio
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel
 import uvicorn
@@ -111,6 +111,41 @@ async def health_check():
         "status": "healthy",
         "service": "LiveLabs Semantic Search API",
         "version": "1.0.0"
+    }
+
+@app.get("/mcp/tools", response_model=Dict[str, Any])
+async def list_tools():
+    """Return available tools for this MCP service"""
+    return {
+        "tools": [
+            {
+                "name": "search_livelabs_workshops",
+                "description": "Search for LiveLabs workshops using semantic similarity based on query text",
+                "parameters": {
+                    "query": {
+                        "type": "string", 
+                        "required": True, 
+                        "description": "Search query text"
+                    },
+                    "top_k": {
+                        "type": "integer", 
+                        "required": False, 
+                        "description": "Number of results to return (default: 10)"
+                    }
+                },
+                "use_when": "User wants to find workshops or courses related to specific topics",
+                "examples": [
+                    "find machine learning workshops", 
+                    "search for database courses", 
+                    "show me cloud computing labs"
+                ]
+            }
+        ],
+        "service_info": {
+            "name": "LiveLabs Semantic Search API",
+            "version": "1.0.0",
+            "description": "Vector search and statistics for LiveLabs workshops"
+        }
     }
 
 @app.post("/search", response_model=SearchResponse)
