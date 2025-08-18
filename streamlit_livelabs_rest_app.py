@@ -252,9 +252,24 @@ def generate_chatbot_response_with_data(user_query: str) -> tuple[str, Dict[str,
     parameters = ai_analysis.get("parameters", {})
     
     if not service_key or not action:
-        error_msg = "AI reasoner failed to identify a valid service and action"
+        error_msg = "AI reasoner failed to identify a valid service and action from the user query."
         log_step("ChatbotResponse", f"❌ {error_msg}")
-        return error_msg, {"success": False, "error": error_msg}, ai_analysis
+        # Create a final result that shows the initial failure
+        final_result = {
+            "success": False,
+            "error": error_msg,
+            "workflow_type": "failed_initialization",
+            "total_steps": 0,
+            "steps": [{
+                "step": 1,
+                "service": "AI-Reasoner",
+                "action": "Initial-Analysis",
+                "parameters": {"user_query": user_query},
+                "result": {"success": False, "error": error_msg},
+                "reasoning": ai_analysis.get('thinking_process', 'N/A')
+            }]
+        }
+        return error_msg, final_result, ai_analysis
     
     if service_key not in SERVICES:
         error_msg = f"Unknown service: {service_key}"
@@ -317,18 +332,43 @@ def generate_chatbot_response_with_data(user_query: str) -> tuple[str, Dict[str,
                     
                     # Add information from all previous steps
                     for prev_step in all_results:
-                        step_result_data = prev_step["result"]
-                        if step_result_data.get("success"):
-                            # Add user profile information from NL query steps
-                            if prev_step["service"] == "livelabs-nl-query":
-                                if step_result_data.get("explanation"):
-                                    context_parts.append(f"User profile: {step_result_data['explanation']}")
-                                if step_result_data.get("users"):
-                                    for user in step_result_data["users"]:
-                                        if user.get("skills"):
-                                            context_parts.append(f"User skills: {', '.join(user['skills'][:5])}")
-                                        if user.get("experience_level"):
-                                            context_parts.append(f"Experience level: {user['experience_level']}")
+                        step_result_data = prev_step.get("result", {})
+                        if not step_result_data.get("success"):
+                            continue
+                            
+                        # Process all keys in the result data
+                        for key, value in step_result_data.items():
+                            # Skip special keys and empty values
+                            if key in ["success", "explanation"] or not value:
+                                continue
+                                
+                            # Handle list of objects (like users, workshops, etc.)
+                            if isinstance(value, list) and value and isinstance(value[0], dict):
+                                for item in value:
+                                    if not isinstance(item, dict):
+                                        continue
+                                    # Add all fields from each item
+                                    for field, field_value in item.items():
+                                        if not field_value:
+                                            continue
+                                        if isinstance(field_value, list):
+                                            if field == "skills" and len(field_value) > 5:
+                                                field_value = field_value[:5]  # Limit skills to top 5
+                                            context_parts.append(f"{key}.{field}: {', '.join(map(str, field_value))}")
+                                        else:
+                                            context_parts.append(f"{key}.{field}: {field_value}")
+                            # Handle simple key-value pairs
+                            elif not isinstance(value, (dict, list)):
+                                context_parts.append(f"{key}: {value}")
+                            # Handle nested dictionaries
+                            elif isinstance(value, dict):
+                                for sub_key, sub_value in value.items():
+                                    if sub_value:
+                                        context_parts.append(f"{key}.{sub_key}: {sub_value}")
+                        
+                        # Add explanation if it exists
+                        if step_result_data.get("explanation"):
+                            context_parts.append(f"{prev_step['service']} context: {step_result_data['explanation']}")
                     
                     # Enhance query with context
                     original_query = next_analysis.get("parameters", {}).get("query", user_query)
@@ -346,8 +386,9 @@ def generate_chatbot_response_with_data(user_query: str) -> tuple[str, Dict[str,
             break
     
     # Combine results
+    success = all(step["result"].get("success", False) for step in all_results) if all_results else False
     final_result = {
-        "success": all(step["result"].get("success", False) for step in all_results),
+        "success": success,
         "workflow_type": "multi_step" if len(all_results) > 1 else "single_step", 
         "total_steps": len(all_results),
         "steps": all_results
@@ -357,8 +398,14 @@ def generate_chatbot_response_with_data(user_query: str) -> tuple[str, Dict[str,
     if final_result.get("success"):
         response = format_response_with_llm(user_query, final_result, ai_analysis)
     else:
-        response = f"Error processing query: {user_query}\nSome steps failed"
-    
+        # Even on failure, provide a helpful error message and the steps that were attempted
+        failed_step = next((s for s in all_results if not s["result"].get("success")), None)
+        if failed_step:
+            error_details = failed_step['result'].get('error', 'Unknown error')
+            response = f"I encountered an error during the process. Step {failed_step['step']} ({failed_step['action']}) failed with the following error: {error_details}"
+        else:
+            response = f"I'm sorry, I was unable to complete your request for '{user_query}'. An unexpected error occurred."
+
     log_step("ChatbotResponse", f"Workflow completed: {len(all_results)} steps")
     return response, final_result, ai_analysis
 
@@ -372,59 +419,125 @@ def format_response_with_llm(user_query: str, api_result: Dict[str, Any], ai_ana
     total_steps = api_result.get("total_steps", 1)
     steps = api_result.get("steps", [])
     
-    # Extract key information from all steps
-    user_info = {}
-    workshop_results = []
+    # Extract information from all steps dynamically
+    all_step_data = {}
     
     for step in steps:
         step_result = step.get("result", {})
-        if step_result.get("success"):
-            if step.get("service") == "livelabs-nl-query":
-                if step_result.get("users"):
-                    user_info = step_result["users"][0] if step_result["users"] else {}
-                if step_result.get("explanation"):
-                    user_info["explanation"] = step_result["explanation"]
-            elif step.get("service") == "livelabs-semantic-search":
-                if step_result.get("results"):
-                    workshop_results.extend(step_result["results"][:5])  # Top 5 results
+        if not step_result.get("success"):
+            continue
+            
+        service_name = step.get("service", "unknown")
+        if service_name not in all_step_data:
+            all_step_data[service_name] = []
+            
+        # Process all keys in the result
+        step_data = {}
+        for key, value in step_result.items():
+            # Skip special keys and empty values
+            if key in ["success", "explanation"] or not value:
+                continue
+                
+            # Handle different value types
+            if isinstance(value, list):
+                # For lists, take first 5 items if it's a list of objects
+                if value and isinstance(value[0], dict):
+                    step_data[key] = value[:5]
+                else:
+                    step_data[key] = value
+            else:
+                step_data[key] = value
+                
+        # Add explanation if it exists
+        if step_result.get("explanation"):
+            step_data["explanation"] = step_result["explanation"]
+            
+        all_step_data[service_name].append(step_data)
     
-    # Create context for LLM
-    context_parts = [f"User Query: {user_query}"]
+    # Backward compatibility
+    user_info = all_step_data.get("livelabs-nl-query", [{}])[0].get("users", [{}])[0] if all_step_data.get("livelabs-nl-query") else {}
+    workshop_results = all_step_data.get("livelabs-semantic-search", [{}])[0].get("results", [])
     
-    if user_info:
-        context_parts.append(f"User Profile Found: {user_info.get('explanation', 'Profile available')}")
-        if user_info.get("skills"):
-            context_parts.append(f"User Skills: {', '.join(user_info['skills'][:5])}")
-        if user_info.get("experience_level"):
-            context_parts.append(f"Experience Level: {user_info['experience_level']}")
+    # Create context for LLM using the dynamic all_step_data structure
+    context_parts = [f"사용자 질문: {user_query}"]
+    workshops = []
     
-    if workshop_results:
-        context_parts.append(f"Found {len(workshop_results)} relevant workshops")
-        for i, workshop in enumerate(workshop_results[:3], 1):
-            context_parts.append(f"Workshop {i}: {workshop.get('title', 'Untitled')} (Score: {workshop.get('score', 0):.2f})")
+    # Process all services and their data
+    for service_name, service_steps in all_step_data.items():
+        if not service_steps:
+            continue
+            
+        context_parts.append(f"\n{service_name.upper()} 결과:")
+        
+        for step_idx, step_data in enumerate(service_steps, 1):
+            for key, value in step_data.items():
+                if key == 'explanation':
+                    context_parts.append(f"- 설명: {value}")
+                elif key == 'results' and isinstance(value, list):
+                    # Add raw workshop results to context
+                    for item in value[:5]:  # Limit to top 5 workshops
+                        if isinstance(item, dict):
+                            context_parts.append(f"- WORKSHOP_RAW: {item}")
+                elif isinstance(value, list):
+                    if value and isinstance(value[0], dict):
+                        for item in value[:3]:  # Limit to top 3 items
+                            if 'name' in item:
+                                context_parts.append(f"- {key}: {item.get('name')}")
+                    elif value:
+                        context_parts.append(f"- {key}: {', '.join(map(str, value[:5]))}")
+                elif value and not isinstance(value, (dict, list)):
+                    context_parts.append(f"- {key}: {value}")
     
     context = "\n".join(context_parts)
     
     # Use LLM to format response
-    formatting_prompt = f"""You are a helpful AI assistant for Oracle LiveLabs workshop recommendations.
+    formatting_prompt = """You are a helpful AI assistant for Oracle LiveLabs workshop recommendations.
 
 CONTEXT:
 {context}
 
-TASK: Create a natural, conversational response that:
+TASK: Create a natural, conversational response in Korean that:
 1. Acknowledges the user's query
-2. Summarizes any user profile information found
-3. Presents workshop recommendations in a friendly, organized way
-4. Includes brief descriptions and relevance explanations
-5. Ends with an encouraging note
+2. If user profile information is available, mention relevant skills/experience
+3. For each WORKSHOP_RAW entry:
+   - Extract and present the workshop details in this format:
+     ### [title]
+     - **난이도**: [difficulty]
+     - **소요 시간**: [duration]
+     - **카테고리**: [category]
+     - **유사도 점수**: [similarity]%
+     - [바로가기](url)
+4. Order workshops by highest similarity score first
+5. Keep the tone warm, professional, and encouraging
+6. Include all URLs exactly as provided in the raw data
+7. Format the response in clean Markdown
 
-Keep the response concise but informative. Use a warm, helpful tone.
+IMPORTANT:
+- The raw workshop data is in JSON format after 'WORKSHOP_RAW:'
+- Use the exact field names from the raw data
+- Don't modify or interpret the values, just present them as-is
+- If a field is missing, skip that line
+- Make sure all URLs are clickable Markdown links
+- Use only the information provided in the context
+- Keep the response concise but informative
+- Use Korean throughout the response
+
+Example of raw data format:
+- WORKSHOP_RAW: {{'title': '...', 'url': '...', 'difficulty': '...', ...}}
+
+Example output format for each workshop:
+### [Workshop Title]
+- **난이도**: [Difficulty]
+- **소요 시간**: [Duration]
+- **카테고리**: [Category]
+- **유사도 점수**: [Similarity]%
+- [바로가기](URL)
 """
     
     try:
         genai_client = OracleGenAIClient()
         llm_response = genai_client.chat(
-            prompt=formatting_prompt,
+            prompt=formatting_prompt.format(context=context),
             model_name="meta.llama-4-scout-17b-16e-instruct",
             temperature=0.3,
             max_tokens=500
@@ -449,8 +562,9 @@ Keep the response concise but informative. Use a warm, helpful tone.
         fallback_response += f"I found {len(workshop_results)} relevant workshops:\n\n"
         for i, workshop in enumerate(workshop_results[:3], 1):
             title = workshop.get("title", "Untitled Workshop")
+            url = workshop.get("url", "#")
             score = workshop.get("score", 0)
-            fallback_response += f"{i}. **{title}** (Relevance: {score:.1f}/10)\n"
+            fallback_response += f"{i}. **[{title}]({url})** (Relevance: {score:.1f}/10)\n"
     else:
         fallback_response += "I couldn't find specific workshops matching your criteria."
     
@@ -710,6 +824,26 @@ def main():
                 with st.expander("View AI Reasoning Analysis"):
                     st.json(message["ai_analysis"])
 
+            # Display workflow steps if available
+            if "api_response" in message and message["api_response"] and "steps" in message["api_response"]:
+                with st.expander("View Workflow Steps"):
+                    for step in message["api_response"]["steps"]:
+                        st.markdown(f"**Step {step['step']}: {step['service']} -> {step['action']}**")
+                        if step['result'].get('success'):
+                            st.success("Status: Success")
+                        else:
+                            st.error("Status: Failed")
+                        
+                        with st.container():
+                            st.markdown("**Parameters:**")
+                            st.json(step['parameters'])
+                            
+                            st.markdown("**Reasoning:**")
+                            st.info(step.get('reasoning', 'No reasoning provided.'))
+
+                            st.markdown("**Result:**")
+                            st.json(step['result'])
+
     if prompt := st.chat_input("Ask me about LiveLabs workshops..."):
         st.session_state.chat_history.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
@@ -719,14 +853,18 @@ def main():
             message_placeholder = st.empty()
             with st.spinner("AI is thinking..."):
                 assistant_response, api_response, ai_analysis = generate_chatbot_response_with_data(prompt)
+                
+                # First, save the complete response to session state
+                st.session_state.chat_history.append({
+                    "role": "assistant", 
+                    "content": assistant_response,
+                    "api_response": api_response,
+                    "ai_analysis": ai_analysis
+                })
+                
+                # Then, update the UI and force a rerun to show the new message and its details
                 message_placeholder.markdown(assistant_response)
-
-        st.session_state.chat_history.append({
-            "role": "assistant",
-            "content": assistant_response,
-            "api_response": api_response,
-            "ai_analysis": ai_analysis
-        })
+                st.rerun()
 
 if __name__ == "__main__":
     try:

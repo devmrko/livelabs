@@ -41,8 +41,23 @@ class AIReasoner:
         ai_analysis["thinking_process"] = thinking_result
         ai_analysis["models_used"] = {
             "reasoning_model": reasoning_model,
-            "summarization_model": "meta.llama-3.1-405b-instruct"
+            "summarization_model": "meta.llama-4-scout-17b-16e-instruct"
         }
+        
+        # 이전 단계가 사용자 프로필 쿼리이고, 현재 단계가 아직 설정되지 않은 경우
+        if previous_results and previous_results[-1].get("service") == "livelabs-nl-query" and not ai_analysis.get("service"):
+            # Clean up the query by removing SQL and context from previous steps
+            clean_query = user_query.split('|')[0].strip()  # Take only the part before the first |
+            clean_query = clean_query.replace('sql_query:', '').replace('livelabs-nl-query context:', '').strip()
+            
+            ai_analysis = {
+                "service": "livelabs-semantic-search",
+                "tool": "search_livelabs_workshops",
+                "parameters": {"query": clean_query},
+                "reasoning": "사용자 프로필 쿼리 후 워크샵 검색을 위한 시맨틱 검색 실행",
+                "confidence": 0.8,
+                "workflow_complete": True
+            }
         
         # 완료 상태 동적 감지
         ai_analysis["workflow_complete"] = self._assess_completion_status(
@@ -63,10 +78,14 @@ class AIReasoner:
                     "workflow_complete": False
                 }
             else:
+                # Clean up the query by removing SQL and context from previous steps
+                clean_query = user_query.split('|')[0].strip()  # Take only the part before the first |
+                clean_query = clean_query.replace('sql_query:', '').replace('livelabs-nl-query context:', '').strip()
+                
                 ai_analysis = {
                     "service": "livelabs-semantic-search",
                     "tool": "search_livelabs_workshops",
-                    "parameters": {"query": user_query}, 
+                    "parameters": {"query": clean_query}, 
                     "reasoning": "폴백: 일반 검색",
                     "confidence": 0.5,
                     "workflow_complete": True
@@ -84,28 +103,23 @@ class AIReasoner:
         if not previous_results:
             # 첫 번째 단계 - 개인화된 쿼리인지 확인
             query_lower = user_query.lower()
-            is_personalized = any(word in query_lower for word in ["i am", "my name", "what should i"])
+            is_personalized = any(word in query_lower for word in ["i am", "my name", "what should i", "who is"])
             
             # 개인화된 쿼리면 더 많은 단계가 필요할 가능성이 높음
-            if is_personalized and current_analysis.get("service") == "livelabs-nl-query":
-                return False  # NL 쿼리 후 semantic search 필요
-            
-            # 일반 검색이면 한 단계로 완료
-            return current_analysis.get("service") == "livelabs-semantic-search"
+            return not is_personalized
         
         # 이전 결과가 있는 경우
         step_count = len(previous_results)
-        
-        # 2단계 이상 실행했으면 보통 완료
-        if step_count >= 2:
-            return True
-            
-        # 이전 단계에서 사용자 정보를 얻었고, 현재 semantic search를 하려는 경우
         last_step = previous_results[-1] if previous_results else None
-        if (last_step and 
-            last_step.get("service") == "livelabs-nl-query" and 
-            current_analysis.get("service") == "livelabs-semantic-search"):
-            return True  # 개인화된 검색 완료
+        
+        # 이전 단계가 사용자 프로필 쿼리이고, 아직 semantic search를 하지 않은 경우
+        if last_step and last_step.get("service") == "livelabs-nl-query":
+            # 사용자 프로필 쿼리 다음에는 반드시 semantic search가 와야 함
+            return False
+            
+        # semantic search 이후거나, 2단계 이상 실행했으면 완료
+        if step_count >= 2 or (last_step and last_step.get("service") == "livelabs-semantic-search"):
+            return True
             
         return False
     
