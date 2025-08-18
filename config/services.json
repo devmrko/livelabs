@@ -1,0 +1,65 @@
+{
+  "mcpServers": {
+    "livelabs-semantic-search": {
+      "transport": "http",
+      "baseUrl": "http://localhost:8001",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "timeout": 30000,
+      "name": "LiveLabs Semantic Search",
+      "description": "Search LiveLabs workshops using semantic similarity and vector embeddings",
+      "use_when": ["workshop search", "find courses", "semantic search", "similar content"],
+      "endpoints": {
+        "search": "/search",
+        "statistics": "/statistics", 
+        "health": "/health",
+        "tools": "/mcp/tools"
+      },
+      "enabled": false,
+      "tools_cache": null,
+      "last_discovery": null
+    },
+    "livelabs-nl-query": {
+      "transport": "http",
+      "baseUrl": "http://localhost:8002",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "timeout": 30000,
+      "name": "Natural Language to SQL Query",
+      "description": "Query database using natural language with Oracle SELECT AI",
+      "use_when": ["natural language query", "ask about users", "database questions", "user skills"],
+      "endpoints": {
+        "query": "/users/search/nl",
+        "health": "/health",
+        "tools": "/mcp/tools"
+      },
+      "enabled": false,
+      "tools_cache": null,
+      "last_discovery": null
+    },
+    "livelabs-user-progression": {
+      "transport": "http",
+      "baseUrl": "http://localhost:8003",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "timeout": 30000,
+      "name": "User Skills and Workshop Progression", 
+      "description": "Update and manage user skills and workshop completion tracking",
+      "use_when": ["update skills", "complete workshop", "track progress", "skill management"],
+      "endpoints": {
+        "update_skills": "/skills/update",
+        "complete_workshop": "/progression/update",
+        "get_progress": "/progression/get",
+        "add_skill": "/skills/update",
+        "health": "/health",
+        "tools": "/mcp/tools"
+      },
+      "enabled": false,
+      "tools_cache": null,
+      "last_discovery": null
+    }
+  }
+}
