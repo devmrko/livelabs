@@ -28,3 +28,6 @@ mcp>=1.0.0
 # Configuration and utilities
 python-dotenv==1.0.0
 psutil
+
+# FastMCP
+fastmcp
