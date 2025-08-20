@@ -232,6 +232,7 @@ QUERY MODIFICATION FOR TOOL CALLS:
 - For user tools: Use specific user identifiers from previous results
 - Always consider how to make the tool call more effective with available context
 
+
 DECISION PROCESS:
 - Consider the user's intent and what they're asking for
 - Look at previous workflow context if available
@@ -314,7 +315,7 @@ Analyze and respond with JSON:"""
         """LLM을 사용하여 쿼리에 대해 생각하도록 함"""
         log_step("AIThinkQuery", f"LLM 사고 과정 호출: '{user_query}'")
         
-        response = self.genai_client.chat_json(
+        response = self.genai_client.chat_json( 
             prompt=prompt,
             model_name=model_name,
             max_tokens=300,

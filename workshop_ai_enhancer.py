@@ -1,6 +1,24 @@
 #!/usr/bin/env python3
 """
 Workshop AI Enhancer
+
+## 개요 (Abstract)
+이 모듈은 Oracle Cloud Infrastructure(OCI) Generative AI를 활용하여 Oracle LiveLabs 워크샵 데이터를 
+지능적으로 분석하고 향상시키는 시스템입니다. 원시 워크샵 텍스트 데이터를 입력받아 AI 기반 메타데이터 
+추출, 자동 분류, 콘텐츠 강화를 수행한 후 MongoDB에 저장합니다.
+
+### 주요 기능:
+- **AI 기반 메타데이터 추출**: 워크샵 제목, 설명, 내용을 분석하여 키워드, 난이도, 카테고리 등을 자동 추출
+- **자동 분류 시스템**: 워크샵을 기술 영역별로 분류하고 적절한 리소스 타입 할당
+- **배치 처리**: 대량의 워크샵 데이터를 효율적으로 처리하며 진행상황 추적 및 복구 기능 제공
+- **이중 저장 구조**: 원본 데이터와 AI 강화된 데이터를 별도 컬렉션에 저장하여 데이터 무결성 보장
+- **오류 복구**: AI 처리 실패 시 기본 메타데이터로 폴백하여 데이터 손실 방지
+
+### 사용 사례:
+- Oracle LiveLabs 워크샵 콘텐츠의 자동 카탈로그화
+- 워크샵 검색 및 추천 시스템을 위한 메타데이터 생성
+- 콘텐츠 관리 시스템의 데이터 품질 향상
+
 Enhances workshop data using OCI GenAI and imports to MongoDB collections
 Provides AI-powered metadata extraction, categorization, and content enrichment
 """

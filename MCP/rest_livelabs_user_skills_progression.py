@@ -72,14 +72,26 @@ async def get_user(name: Optional[str] = None, email: Optional[str] = None) -> D
     """Retrieves user profile information from LiveLabs system by name or email lookup.
     
     Parameters:
-    - name (Optional[str]): User's full name for search (partial matches supported)
-    - email (Optional[str]): User's email address for exact lookup
+    - name (Optional[str]): User's full name for search (Korean names: 고정민, 정성일 / English: John Smith)
+    - email (Optional[str]): Email address for exact lookup (format: user@domain.com)
     
     Returns: JSON with user details (userId, name, email, createdDate, metadata)
     Use cases: User lookup, profile verification, finding userId for other operations
+    
+    IMPORTANT: Use 'name' parameter for person names (including Korean names), 'email' only for email addresses
     Note: Provide at least one parameter (name or email) for search
     """
     logger.info(f"Executing get_user for name='{name}', email='{email}'")
+    
+    # Parameter validation and smart interpretation
+    if name and "@" in name:
+        logger.warning(f"Name parameter contains '@' symbol: '{name}' - this might be an email address")
+        # Auto-correct: move to email parameter if name looks like email
+        if not email and name.count("@") == 1 and "." in name.split("@")[1]:
+            logger.info(f"Auto-correcting: moving '{name}' from name to email parameter")
+            email = name
+            name = None
+    
     try:
         users_collection = mongo_manager.db["livelabs_users_json"]
         query = {}
