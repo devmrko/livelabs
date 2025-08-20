@@ -44,52 +44,25 @@ class AIReasoner:
             "summarization_model": "meta.llama-4-scout-17b-16e-instruct"
         }
         
-        # 이전 단계가 사용자 프로필 쿼리이고, 현재 단계가 아직 설정되지 않은 경우
-        if previous_results and previous_results[-1].get("service") == "livelabs-nl-query" and not ai_analysis.get("service"):
-            # Clean up the query by removing SQL and context from previous steps
-            clean_query = user_query.split('|')[0].strip()  # Take only the part before the first |
-            clean_query = clean_query.replace('sql_query:', '').replace('livelabs-nl-query context:', '').strip()
-            
-            ai_analysis = {
-                "service": "livelabs-semantic-search",
-                "tool": "search_livelabs_workshops",
-                "parameters": {"query": clean_query},
-                "reasoning": "사용자 프로필 쿼리 후 워크샵 검색을 위한 시맨틱 검색 실행",
-                "confidence": 0.8,
-                "workflow_complete": True
-            }
         
-        # 완료 상태 동적 감지
-        ai_analysis["workflow_complete"] = self._assess_completion_status(
-            user_query, ai_analysis, previous_results
-        )
+        # 완료 상태 동적 감지 (이미 설정되지 않은 경우에만)
+        if "workflow_complete" not in ai_analysis:
+            ai_analysis["workflow_complete"] = self._assess_completion_status(
+                user_query, ai_analysis, previous_results
+            )
         
-        # LLM이 완전히 실패한 경우 기본 폴백 제공
+        # LLM이 완전히 실패한 경우에만 최소한의 폴백 제공
         if ai_analysis.get("error") and not ai_analysis.get("service"):
-            log_step("AIReasoner", "LLM 완전 실패, 기본 폴백 사용")
-            query_lower = user_query.lower()
-            if any(word in query_lower for word in ["i am", "my name", "what should i"]):
-                ai_analysis = {
-                    "service": "livelabs-nl-query",
-                    "tool": "query_database_nl", 
-                    "parameters": {"natural_language_query": user_query},
-                    "reasoning": "폴백: 개인 쿼리 감지됨",
-                    "confidence": 0.5,
-                    "workflow_complete": False
-                }
-            else:
-                # Clean up the query by removing SQL and context from previous steps
-                clean_query = user_query.split('|')[0].strip()  # Take only the part before the first |
-                clean_query = clean_query.replace('sql_query:', '').replace('livelabs-nl-query context:', '').strip()
-                
-                ai_analysis = {
-                    "service": "livelabs-semantic-search",
-                    "tool": "search_livelabs_workshops",
-                    "parameters": {"query": clean_query}, 
-                    "reasoning": "폴백: 일반 검색",
-                    "confidence": 0.5,
-                    "workflow_complete": True
-                }
+            log_step("AIReasoner", "LLM 완전 실패, 오류 반환")
+            ai_analysis = {
+                "service": None,
+                "tool": None,
+                "parameters": {},
+                "reasoning": "AI가 쿼리를 분석할 수 없습니다. 다시 시도해 주세요.",
+                "confidence": 0.0,
+                "workflow_complete": True,
+                "error": "AI 분석 실패"
+            }
             ai_analysis["thinking_process"] = thinking_result
         
         log_step("AIReasoner", f"AI 사고 과정: {thinking_result.get('thought_process', '사고 과정 없음')}")
@@ -101,9 +74,11 @@ class AIReasoner:
     def _assess_completion_status(self, user_query: str, current_analysis: Dict, previous_results: List[Dict] = None) -> bool:
         """현재 단계 결과를 바탕으로 워크플로우 완료 여부 동적 판단"""
         if not previous_results:
-            # 첫 번째 단계 - 개인화된 쿼리인지 확인
+            # 첫 번째 단계 - 개인화된 쿼리인지 확인 (한국어 포함)
             query_lower = user_query.lower()
-            is_personalized = any(word in query_lower for word in ["i am", "my name", "what should i", "who is"])
+            is_personalized = any(word in query_lower for word in [
+                "고정민", "내", "나의", "저의", "my", "i am", "what should i", "who is", "추천", "recommend"
+            ])
             
             # 개인화된 쿼리면 더 많은 단계가 필요할 가능성이 높음
             return not is_personalized
@@ -174,89 +149,116 @@ class AIReasoner:
         return None
     
     def _create_reasoning_prompt(self, user_query: str, previous_results: List[Dict] = None) -> str:
-        """AI가 다음 행동을 결정하기 위한 상세한 프롬프트를 생성합니다.
-
-        이 메서드는 AI가 다음에 사용할 서비스와 도구를 정보에 입각해 결정하는 데
-        필요한 모든 컨텍스트를 제공하는 프롬프트를 구성합니다. 프롬프트에는 다음이 포함됩니다:
-        1.  사용 가능한 서비스 및 해당 도구(엔드포인트)의 동적으로 생성된 목록과
-            선택을 안내하는 "사용 시점" 힌트.
-        2.  사용자의 원본 쿼리.
-        3.  성공 또는 실패 여부를 포함하여 다단계 워크플로우에서 이전에 실행된 단계의 요약.
-        4.  일반적인 시나리오(예: 개인화된 쿼리 대 일반 쿼리)에 대한 결정 규칙 집합.
-        5.  AI의 응답을 안정적으로 파싱할 수 있도록 보장하는 필수 JSON 출력 형식의 엄격한 정의.
-
-        Args:
-            user_query (str): 사용자의 초기 쿼리.
-            previous_results (List[Dict]): 워크플로우의 이전 단계를 나타내는 딕셔너리 리스트.
-
-        Returns:
-            str: AI 모델의 프롬프트로 사용될 형식화된 문자열.
         """
-        # 1. 사용 가능한 서비스 및 도구 목록 생성
+        Create a fully prompt-driven reasoning system for AI Workshop Planner.
+        All decisions are made by the LLM through prompts, not hardcoded logic.
+        """
+        # Build available services and tools dynamically from MCP discovery
         services_desc = []
         for service_key, service_config in self.services.items():
-            service_use_when = service_config.get("use_when", [])
-            endpoint_list = []
-            for endpoint_name in service_config.get("endpoints", {}).items():
-                # 'health', 'tools' 같은 유틸리티 엔드포인트는 건너뜁니다.
-                if endpoint_name not in ["health", "tools"]:
-                    endpoint_list.append(f"   - {endpoint_name}: {service_config['description']}")
+            service_desc = f"- {service_key}: {service_config.get('description', 'No description')}"
             
-            use_when_text = f" (Use when: {', '.join(service_use_when)})" if service_use_when else ""
-            services_desc.append(f"{service_key}{use_when_text}:\n" + "\n".join(endpoint_list))
+            # Add discovered tools with parameter details if available
+            if service_config.get('tools_cache'):
+                tools_info = []
+                for tool in service_config['tools_cache'].get('tools', []):
+                    tool_name = tool.get('name', 'unknown')
+                    tool_desc = tool.get('description', 'No description')
+                    
+                    # Add parameter information if available
+                    tool_line = f"  * {tool_name}: {tool_desc}"
+                    
+                    # Try to get parameter info from inputSchema if available
+                    if hasattr(tool, 'inputSchema') and tool.inputSchema:
+                        properties = tool.inputSchema.get('properties', {})
+                        if properties:
+                            param_names = list(properties.keys())
+                            tool_line += f" (parameters: {', '.join(param_names)})"
+                    
+                    tools_info.append(tool_line)
+                
+                if tools_info:
+                    service_desc += "\n" + "\n".join(tools_info)
+            
+            services_desc.append(service_desc)
         
         services_text = "\n\n".join(services_desc)
         
-        # 2. 이전 단계 실행 결과가 있는 경우, 컨텍스트 정보 생성
+        # Build context from previous results
         context_info = ""
         if previous_results:
-            context_info = f"\n\nPREVIOUS STEPS COMPLETED:\n" # 이전 단계 완료
+            context_info = f"\n\nPREVIOUS WORKFLOW CONTEXT:\n"
             for i, result in enumerate(previous_results, 1):
                 service = result.get('service', 'unknown')
                 action = result.get('action', 'unknown')
                 success = result.get('result', {}).get('success', False)
-                context_info += f"Step {i}: {service}.{action} - {'✅ Success' if success else '❌ Failed'}\n"
+                context_info += f"Step {i}: {service}.{action} - {'Success' if success else 'Failed'}\n"
                 
-                # 컨텍스트를 위한 결과 요약 추가
                 if success and result.get('result'):
+                    # Add key information from successful results
                     res_data = result['result']
-                    # 이전 단계 결과에서 'success'를 제외한 키를 요약에 추가
-                    summary_keys = [k for k in res_data.keys() if k != 'success']
-                    if summary_keys:
-                        context_info += f"  → 이전 단계 결과: {', '.join(summary_keys)} 키를 포함한 데이터가 반환되었습니다.\n"
+                    if isinstance(res_data, dict):
+                        important_keys = [k for k in res_data.keys() if k not in ['success', 'message']]
+                        if important_keys:
+                            context_info += f"  → Available data: {', '.join(important_keys)}\n"
         
-        # 3. 최종 프롬프트 조립
-        return f"""You are a service selector for LiveLabs workshop recommendations. 
+        return f"""You are an AI Workshop Planner that makes ALL decisions through reasoning, not hardcoded rules.
 
-# 사용 가능한 MCP 서비스 및 도구:
+AVAILABLE MCP SERVICES AND TOOLS:
 {services_text}
 
-# 사용자 쿼리: "{user_query}"{context_info}
+USER QUERY: "{user_query}"{context_info}
 
-# 결정 규칙:
-- 이름이 포함된 개인화 쿼리 → 'livelabs-nl-query'로 시작한 후 'livelabs-semantic-search' 사용
-- 일반 쿼리 → 'livelabs-semantic-search' 직접 사용
-- 업데이트/진행 관련 쿼리 → 'livelabs-user-progression' 서비스 사용
-- 이전 단계가 성공적으로 완료된 경우, 추가 단계가 필요한지 판단
+CRITICAL - TOOL NAME REQUIREMENTS:
+- You MUST use the exact tool names shown in the service descriptions above
+- DO NOT use service names as tool names (e.g., don't use "livelabs-user-progression" as a tool name)
+- Look at the tool list under each service and use those exact names
+- Example: For livelabs-user-progression service, use tools like "get_user", "add_user", etc.
 
-# 도구별 매개변수 예시:
-- livelabs-semantic-search.search: {{"query": "사용자 검색어"}}
-- livelabs-nl-query.query: {{"natural_language_query": "사용자의 자연어 질문"}}
-- livelabs-user-progression.update_skills: {{"user_id": "사용자 ID 또는 이름", "skills": ["스킬1", "스킬2"]}}
-- livelabs-user-progression.complete_workshop: {{"user_id": "사용자 ID 또는 이름", "workshop_id": "워크숍 ID 또는 이름"}}
-- livelabs-user-progression.get_progress: {{"user_id": "사용자 ID 또는 이름"}}
+YOUR TASK:
+Analyze the user query and current context to determine:
+1. What MCP service to use
+2. What specific TOOL from that service to call (use EXACT tool names from above)
+3. What parameters to use (including modified/enhanced queries when needed)
+4. Whether this completes the workflow or more steps are needed
 
-# 필수 출력 형식:
-{{"service": "서비스-이름", "tool": "엔드포인트-이름", "parameters": {{"키": "값"}}, "reasoning": "설명", "workflow_complete": true/false}}
+MUST:
+because it is AI workshops planner, you must figure out the user's current situation(skill, workshop taken) if the inquiry needs
+then you can plan the next step by using the user's current situation
 
-# 중요:
-- "tool" 필드에는 서비스 이름이 아닌 엔드포인트 이름(예: "query", "search", "update_skills")을 사용하세요.
-- 'workflow_complete'는 다음과 같이 설정하세요:
-  - false: 개인화된 쿼리의 첫 단계일 경우 (사용자 데이터가 먼저 필요함)
-  - true: 사용자의 요청을 완료하는 경우 (일반 검색 또는 다단계의 마지막 단계)
+QUERY MODIFICATION FOR TOOL CALLS:
+- For search_workshops: Enhance the query parameter with context from previous steps
+- For query_database_nl: Modify natural_language_query to be more specific based on context
+- For user tools: Use specific user identifiers from previous results
+- Always consider how to make the tool call more effective with available context
 
-# 다음 쿼리에 대해 유효한 JSON으로 응답하세요: "{user_query}"
-"""
+DECISION PROCESS:
+- Consider the user's intent and what they're asking for
+- Look at previous workflow context if available
+- Modify queries/parameters to include relevant context from previous steps
+- Use the CORRECT tool names from the service descriptions above
+- Choose the most appropriate service and tool
+- Decide if workflow should continue (workflow_complete: false) or end (workflow_complete: true)
+
+WORKFLOW CONTINUATION LOGIC:
+- Set workflow_complete: false if you expect to need another step after this one
+- Set workflow_complete: true if this step should complete the user's request AND you have enough information to provide a comprehensive summary
+- Base this decision on the user's original query and what you're accomplishing
+
+PARAMETER ADAPTATION:
+- Adapt parameters to match the selected tool's requirements exactly
+- Use context from previous results to enhance parameter values
+- Ensure parameter names and types match the tool specification
+
+COMPLETION AND SUMMARY:
+- When setting workflow_complete: true, include a "summary" field with a comprehensive answer to the user's original question
+- The summary should synthesize all information gathered from previous workflow steps
+- Provide actionable recommendations based on the collected data
+
+RESPONSE FORMAT (JSON only, no explanations):
+{{"service": "service-name", "tool": "actual-tool-name-from-list", "parameters": {{"key": "value"}}, "reasoning": "your decision process", "workflow_complete": true/false, "query_modification": "explanation of how you modified the query/parameters", "summary": "comprehensive answer when workflow_complete is true"}}
+
+Make your decision based on reasoning about the user's needs, using the CORRECT tool names from the MCP discovery results above."""
     
     def _ai_analyze_query(self, prompt: str, user_query: str, model_name: str) -> Dict[str, Any]:
         """LLM을 사용하여 쿼리 분석 및 서비스 선택"""
@@ -265,7 +267,8 @@ class AIReasoner:
         response = self.genai_client.chat_json(
             prompt=prompt,
             model_name=model_name,
-            max_tokens=300
+            max_tokens=200,
+            retry_on_invalid_json=True
         )
         
         if response["success"]:
@@ -314,7 +317,8 @@ Analyze and respond with JSON:"""
         response = self.genai_client.chat_json(
             prompt=prompt,
             model_name=model_name,
-            max_tokens=400
+            max_tokens=300,
+            retry_on_invalid_json=True
         )
         
         if response["success"]:

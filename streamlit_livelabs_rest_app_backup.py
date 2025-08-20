@@ -232,18 +232,8 @@ def generate_chatbot_response_with_data(user_query: str) -> tuple[str, Dict[str,
     """Generate chatbot response and return the raw data for LLM formatting"""
     log_step("ChatbotResponse", f"Processing user query: '{user_query}'")
     
-    # Initialize AI reasoner with tool discovery
+    # Initialize AI reasoner
     if "ai_reasoner" not in st.session_state:
-        # Ensure all enabled services have discovered tools
-        for service_key in st.session_state.services_config.keys():
-            if st.session_state.service_states.get(service_key, False):
-                if not st.session_state.services_config[service_key].get('tools_cache'):
-                    try:
-                        tools_data = asyncio.run(st.session_state.mcp_discovery.discover_tools(service_key))
-                        logger.info(f"Auto-discovered tools for {service_key}: {len(tools_data.get('tools', []))} tools")
-                    except Exception as e:
-                        logger.warning(f"Auto tool discovery failed for {service_key}: {e}")
-        
         st.session_state.ai_reasoner = AIReasoner(st.session_state.services_config)
     
     # Step 1: AI Analysis
@@ -295,10 +285,6 @@ def generate_chatbot_response_with_data(user_query: str) -> tuple[str, Dict[str,
         
         log_step("ChatbotResponse", f"Executing step {step_count}: {step_service}.{step_action}")
         
-        # Apply query modification if specified by AI reasoner
-        if current_step.get("query_modification"):
-            log_step("ChatbotResponse", f"Query modification: {current_step['query_modification']}")
-        
         # Make API call for this step
         step_result = call_rest_api(step_service, step_action, step_params)
         
@@ -308,108 +294,133 @@ def generate_chatbot_response_with_data(user_query: str) -> tuple[str, Dict[str,
             "action": step_action,
             "parameters": step_params,
             "result": step_result,
-            "reasoning": current_step.get("reasoning", ""),
-            "query_modification": current_step.get("query_modification", "")
+            "reasoning": current_step.get("reasoning", "")
         })
         
-        # Check if current step indicates completion (LLM decision)
-        if current_step.get("workflow_complete", False):
-            log_step("ChatbotResponse", f"LLM marked workflow complete after step {step_count}")
-            break
-        
-        # If step failed, let LLM decide what to do next
-        if not step_result.get("success"):
-            log_step("ChatbotResponse", f"Step {step_count} failed, asking LLM for next action...")
+        # Check if workflow should continue based on dynamic reasoning
+        if step_result.get("success"):
+            # Check if we actually got meaningful data
+            has_meaningful_data = False
+            if step_result.get("users") and len(step_result["users"]) > 0:
+                has_meaningful_data = True
+            elif step_result.get("results") and len(step_result["results"]) > 0:
+                has_meaningful_data = True
+            elif step_result.get("total_found", 0) > 0:
+                has_meaningful_data = True
+                
+            # If no meaningful data and this is a user query, don't continue workflow
+            if not has_meaningful_data and step_service == "livelabs-nl-query":
+                log_step("ChatbotResponse", f"No user data found, stopping workflow after step {step_count}")
+                break
+                
+            # Check if current step indicates completion
+            if current_step.get("workflow_complete", False):
+                log_step("ChatbotResponse", f"Workflow marked complete after step {step_count}")
+                break
+                
+            # If not complete, use AI reasoner to determine next step
+            log_step("ChatbotResponse", f"Step {step_count} successful, checking for next step...")
+            
+            # Re-analyze with context of previous results to determine next action
+            next_analysis = st.session_state.ai_reasoner.reason_about_query(user_query, all_results)
+            
+            # If reasoner says we're done, stop
+            if next_analysis.get("workflow_complete", False):
+                log_step("ChatbotResponse", f"AI reasoner determined workflow complete after {step_count} steps")
+                break
+                
+            # If reasoner suggests no action or same action, stop workflow
+            next_service = next_analysis.get("service")
+            next_tool = next_analysis.get("tool") or next_analysis.get("action")
+            
+            if not next_service or not next_tool:
+                log_step("ChatbotResponse", f"No new action suggested - workflow complete")
+                break
+                
+            # If reasoner suggests a different service/tool than what we just did, continue
+            if (next_service != step_service or next_tool != step_action):
+                current_step = next_analysis
+                log_step("ChatbotResponse", f"Continuing to next step: {next_service}.{next_tool}")
+            else:
+                log_step("ChatbotResponse", f"Same action suggested - workflow complete")
+                break
+                
+            # Enhance semantic search queries with context from previous steps
+            if next_analysis.get("service") == "livelabs-semantic-search":
+                context_parts = [f"Original user inquiry: {user_query}"]
+                
+                # Add information from all previous steps
+                for prev_step in all_results:
+                    step_result_data = prev_step.get("result", {})
+                    if not step_result_data.get("success"):
+                        continue
+                        
+                    # Process all keys in the result data
+                    for key, value in step_result_data.items():
+                            # Skip special keys and empty values
+                            if key in ["success", "explanation"] or not value:
+                                continue
+                                
+                            # Handle list of objects (like users, workshops, etc.)
+                            if isinstance(value, list) and value and isinstance(value[0], dict):
+                                for item in value:
+                                    if not isinstance(item, dict):
+                                        continue
+                                    # Add all fields from each item
+                                    for field, field_value in item.items():
+                                        if not field_value:
+                                            continue
+                                        if isinstance(field_value, list):
+                                            if field == "skills" and len(field_value) > 5:
+                                                field_value = field_value[:5]  # Limit skills to top 5
+                                            context_parts.append(f"{key}.{field}: {', '.join(map(str, field_value))}")
+                                        else:
+                                            context_parts.append(f"{key}.{field}: {field_value}")
+                            # Handle simple key-value pairs
+                            elif not isinstance(value, (dict, list)):
+                                context_parts.append(f"{key}: {value}")
+                            # Handle nested dictionaries
+                            elif isinstance(value, dict):
+                                for sub_key, sub_value in value.items():
+                                    if sub_value:
+                                        context_parts.append(f"{key}.{sub_key}: {sub_value}")
+                    
+                    # Add explanation if it exists
+                    if step_result_data.get("explanation"):
+                        context_parts.append(f"{prev_step['service']} context: {step_result_data['explanation']}")
+                    
+                    # Enhance query with context
+                    original_query = next_analysis.get("parameters", {}).get("query", user_query)
+                    comprehensive_query = f"{original_query}. Context: {' | '.join(context_parts)}"
+                    next_analysis["parameters"]["query"] = comprehensive_query
+                    log_step("ChatbotResponse", f"Enhanced query with context: {comprehensive_query[:200]}...")
         else:
-            log_step("ChatbotResponse", f"Step {step_count} successful, asking LLM for next action...")
-        
-        # Always ask LLM to decide next step (no hardcoded logic)
-        next_analysis = st.session_state.ai_reasoner.reason_about_query(user_query, all_results)
-        
-        # LLM decides if workflow is complete
-        if next_analysis.get("workflow_complete", False):
-            log_step("ChatbotResponse", f"LLM determined workflow complete after {step_count} steps")
+            log_step("ChatbotResponse", f"Step {step_count} failed - stopping workflow")
             break
-        
-        # LLM decides next action
-        next_service = next_analysis.get("service")
-        next_tool = next_analysis.get("tool") or next_analysis.get("action")
-        
-        if not next_service or not next_tool:
-            log_step("ChatbotResponse", f"LLM provided no next action - workflow complete")
-            break
-        
-        # Continue with LLM's decision
-        current_step = next_analysis
-        log_step("ChatbotResponse", f"LLM decided next step: {next_service}.{next_tool}")
     
-    # Process workflow results - no hardcoded logic, just collect data
-    workflow_type = "multi_step" if step_count > 1 else "single_step"
-    
-    # Create final result structure
+    # Combine results
+    success = all(step["result"].get("success", False) for step in all_results) if all_results else False
     final_result = {
-        "success": len(all_results) > 0 and all_results[-1]["result"].get("success", False),
-        "workflow_type": workflow_type,
-        "total_steps": step_count,
+        "success": success,
+        "workflow_type": "multi_step" if len(all_results) > 1 else "single_step", 
+        "total_steps": len(all_results),
         "steps": all_results
     }
     
-    # Generate LLM response based on all workflow results
-    response_text = generate_llm_response(user_query, final_result)
-    
-    return response_text, final_result, ai_analysis
-
-
-def generate_llm_response(user_query: str, workflow_results: Dict[str, Any]) -> str:
-    """Generate natural language response using LLM based on workflow results"""
-    log_step("LLMResponse", f"Generating response for: {user_query}")
-    
-    # Initialize AI reasoner for response generation
-    if "ai_reasoner" not in st.session_state:
-        st.session_state.ai_reasoner = AIReasoner(st.session_state.services_config)
-    
-    # Extract data from workflow steps
-    all_data = []
-    for step in workflow_results.get("steps", []):
-        if step["result"].get("success"):
-            all_data.append({
-                "service": step["service"],
-                "action": step["action"], 
-                "data": step["result"]
-            })
-    
-    # Create prompt for LLM response generation
-    prompt = f"""You are an AI Workshop Planner assistant. Generate a natural, helpful response in Korean.
-
-USER QUERY: "{user_query}"
-
-WORKFLOW DATA:
-{json.dumps(all_data, ensure_ascii=False, indent=2)}
-
-Generate a conversational response that:
-1. Addresses the user's original question
-2. Uses the actual data from the workflow steps
-3. Is encouraging and helpful
-4. Speaks as an AI Workshop Planner
-5. Uses Korean language
-
-Respond naturally without mentioning technical details like "workflow" or "API calls"."""
-
-    try:
-        response = st.session_state.ai_reasoner.genai_client.chat(
-            prompt=prompt,
-            model_name="cohere.command-r-plus-08-2024",
-            max_tokens=500
-        )
-        
-        if response["success"]:
-            return response["text"]
+    # Generate response with LLM formatting
+    if final_result.get("success"):
+        response = format_response_with_llm(user_query, final_result, ai_analysis)
+    else:
+        # Even on failure, provide a helpful error message and the steps that were attempted
+        failed_step = next((s for s in all_results if not s["result"].get("success")), None)
+        if failed_step:
+            error_details = failed_step['result'].get('error', 'Unknown error')
+            response = f"I encountered an error during the process. Step {failed_step['step']} ({failed_step['action']}) failed with the following error: {error_details}"
         else:
-            return f"죄송합니다. 응답 생성 중 오류가 발생했습니다: {response.get('error', '알 수 없는 오류')}"
-            
-    except Exception as e:
-        log_step("LLMResponse", f"Error generating response: {e}")
-        return f"죄송합니다. 응답을 생성할 수 없습니다. 다시 시도해 주세요."
+            response = f"I'm sorry, I was unable to complete your request for '{user_query}'. An unexpected error occurred."
+
+    log_step("ChatbotResponse", f"Workflow completed: {len(all_results)} steps")
+    return response, final_result, ai_analysis
 
 
 def format_response_with_llm(user_query: str, api_result: Dict[str, Any], ai_analysis: Dict[str, Any]) -> str:
