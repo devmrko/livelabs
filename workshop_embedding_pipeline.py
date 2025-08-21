@@ -1,6 +1,30 @@
 #!/usr/bin/env python3
 """
 Workshop Embedding Pipeline
+
+## 개요 (Abstract)
+이 모듈은 워크샵 데이터를 위한 완전한 ETL(Extract, Transform, Load) 파이프라인으로, 
+MongoDB에서 워크샵 데이터를 추출하여 OCI(Oracle Cloud Infrastructure) 임베딩 서비스를 통해 
+의미론적 벡터를 생성하고, 이를 Oracle Vector Database에 저장하는 시스템입니다.
+
+### 주요 기능:
+- **데이터 추출**: MongoDB의 워크샵 컬렉션에서 구조화된 데이터 추출
+- **텍스트 전처리**: 전체 JSON 문서를 임베딩 생성에 최적화된 텍스트로 변환
+- **벡터 임베딩 생성**: OCI Cohere 모델을 사용하여 고품질 의미론적 임베딩 생성
+- **벡터 데이터베이스 저장**: Oracle Database의 벡터 검색 기능을 위한 임베딩 저장
+- **배치 처리**: 대량의 워크샵 데이터를 효율적으로 처리하며 진행상황 모니터링
+- **오류 처리**: 개별 워크샵 처리 실패 시에도 전체 파이프라인 지속 실행
+
+### 데이터 플로우:
+1. **MongoDB** → 워크샵 메타데이터 및 콘텐츠 추출
+2. **OCI GenAI** → JSON 문서 전체를 벡터로 변환
+3. **Oracle Vector DB** → 의미론적 검색을 위한 벡터 저장
+
+### 사용 사례:
+- 워크샵 콘텐츠의 의미론적 검색 시스템 구축
+- 유사한 워크샵 추천 시스템 개발
+- AI 기반 콘텐츠 발견 및 분류 시스템
+
 ETL pipeline that processes workshop data: MongoDB → OCI Embeddings → Oracle Vector Database
 Generates semantic embeddings for workshop content to enable vector-based search
 """
