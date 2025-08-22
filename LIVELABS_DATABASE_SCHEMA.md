@@ -1,9 +1,23 @@
-## Oracle Database Table Schema
-```
--- ADMIN.LIVELABS_WORKSHOPS2 definition
+# 🗃️ LiveLabs AI Assistant 데이터베이스 스키마
 
-CREATE TABLE "ADMIN"."LIVELABS_WORKSHOPS2" 
-(
+이 문서는 LiveLabs AI Assistant 시스템에서 사용하는 Oracle Database 23ai의 테이블 구조와 JSON Duality Views를 설명합니다.
+
+## 📋 목차
+1. [핵심 테이블 스키마](#핵심-테이블-스키마)
+2. [JSON Duality Views](#json-duality-views)
+3. [데이터 예시](#데이터-예시)
+4. [Oracle SELECT AI 설정](#oracle-select-ai-설정)
+
+---
+
+## 🏗️ 핵심 테이블 스키마
+
+### 1. 📚 워크샵 카탈로그 테이블 (LIVELABS_WORKSHOPS2)
+
+**목적**: Oracle LiveLabs 워크샵 및 교육 과정 카탈로그
+
+```sql
+CREATE TABLE "ADMIN"."LIVELABS_WORKSHOPS2" (
     "ID" VARCHAR2(100) PRIMARY KEY,
     "MONGO_ID" VARCHAR2(100) NOT NULL UNIQUE,
     "TITLE" VARCHAR2(500),
@@ -21,33 +35,128 @@ CREATE TABLE "ADMIN"."LIVELABS_WORKSHOPS2"
     "LANGUAGE" VARCHAR2(10),
     "COHERE4_EMBEDDING" VECTOR(1536, FLOAT32)
 );
-
-COMMENT ON TABLE ADMIN.LIVELABS_WORKSHOPS2 IS 'Oracle LiveLabs workshops and training courses catalog. Contains available learning content with descriptions, difficulty levels, categories, and metadata. Use this table to find workshops, search courses by topic, filter by difficulty, analyze workshop popularity, get course details, or recommend appropriate training content to users based on their skill level and interests.';
-
-COMMENT ON COLUMN ADMIN.LIVELABS_WORKSHOPS2.ID IS 'Unique identifier for each learning resource record';
-COMMENT ON COLUMN ADMIN.LIVELABS_WORKSHOPS2.MONGO_ID IS 'Original MongoDB document ID for data lineage tracking';
-COMMENT ON COLUMN ADMIN.LIVELABS_WORKSHOPS2.TITLE IS 'Main title/headline of the learning resource (searchable text)';
-COMMENT ON COLUMN ADMIN.LIVELABS_WORKSHOPS2.DESCRIPTION IS 'Detailed summary, overview, and learning objectives';
-COMMENT ON COLUMN ADMIN.LIVELABS_WORKSHOPS2.TEXT_CONTENT IS 'Full text content for comprehensive search and analysis';
-COMMENT ON COLUMN ADMIN.LIVELABS_WORKSHOPS2.KEYWORDS IS 'JSON array of tags and keywords (e.g., ["javascript", "tutorial", "beginner"])';
-COMMENT ON COLUMN ADMIN.LIVELABS_WORKSHOPS2.AUTHOR IS 'Content creator, instructor, or author name';
-COMMENT ON COLUMN ADMIN.LIVELABS_WORKSHOPS2.CREATED_AT IS 'Publication or creation date';
-COMMENT ON COLUMN ADMIN.LIVELABS_WORKSHOPS2.DIFFICULTY IS 'Skill level: Beginner, Intermediate, Advanced, Expert';
-COMMENT ON COLUMN ADMIN.LIVELABS_WORKSHOPS2.CATEGORY IS 'Subject area: Programming, Data Science, Design, etc.';
-COMMENT ON COLUMN ADMIN.LIVELABS_WORKSHOPS2.DURATION_ESTIMATE IS 'Time to complete: "30 minutes", "2 hours", "1 week"';
-COMMENT ON COLUMN ADMIN.LIVELABS_WORKSHOPS2.RESOURCE_TYPE IS 'Content format: Article, Video, Course, Tutorial, Documentation';
-COMMENT ON COLUMN ADMIN.LIVELABS_WORKSHOPS2."SOURCE" IS 'Origin platform: YouTube, Medium, Coursera, etc.';
-COMMENT ON COLUMN ADMIN.LIVELABS_WORKSHOPS2.URL IS 'Direct web link to access the original resource';
-COMMENT ON COLUMN ADMIN.LIVELABS_WORKSHOPS2."LANGUAGE" IS 'Content language code (EN, ES, FR, etc.)';
-COMMENT ON COLUMN ADMIN.LIVELABS_WORKSHOPS2.COHERE4_EMBEDDING IS 'AI vector embedding for semantic similarity search and recommendations';
 ```
 
-## JSON Duality view creation scripts
+**주요 특징**:
+- **VECTOR 데이터 타입**: `COHERE4_EMBEDDING`으로 시맨틱 검색 지원
+- **JSON 필드**: `KEYWORDS`로 태그 및 키워드 저장
+- **다국어 지원**: `LANGUAGE` 필드로 콘텐츠 언어 관리
+
+**컬럼 설명**:
+- `ID`: 워크샵 고유 식별자
+- `COHERE4_EMBEDDING`: AI 벡터 임베딩 (시맨틱 검색용)
+- `DIFFICULTY`: 난이도 (Beginner, Intermediate, Advanced, Expert)
+- `KEYWORDS`: JSON 배열 형태의 태그 (예: `["javascript", "tutorial", "beginner"]`)
+
+### 2. 👥 사용자 테이블 (LIVELABS_USERS)
+
+**목적**: 사용자 프로필 및 계정 정보
+
+```sql
+CREATE TABLE "ADMIN"."LIVELABS_USERS" (
+    "USER_ID" VARCHAR2(50) PRIMARY KEY,
+    "NAME" VARCHAR2(200) NOT NULL,
+    "EMAIL" VARCHAR2(255) NOT NULL,
+    "CREATED_DATE" DATE DEFAULT SYSDATE,
+    "MONGO_ID" VARCHAR2(36) DEFAULT SYS_GUID() NOT NULL
+);
 ```
--- for add workshop, update workshop, or get workshop by id via momgo db interface
-CREATE OR REPLACE FORCE EDITIONABLE JSON RELATIONAL DUALITY VIEW "ADMIN"."LIVELABS_WORKSHOPS_JSON2"  DEFAULT COLLATION "USING_NLS_COMP"  AS 
-  SELECT JSON {
-  '_id'               : mongo_id,  -- or use : mongo_id if available
+
+**주요 특징**:
+- **이중 ID 시스템**: `USER_ID` (기본키) + `MONGO_ID` (MongoDB 호환)
+- **자동 생성**: `CREATED_DATE`와 `MONGO_ID` 자동 설정
+
+### 3. 🎯 사용자 스킬 테이블 (LIVELABS_USERS_SKILL)
+
+**목적**: 사용자별 기술 스킬 및 경험 레벨 추적
+
+```sql
+CREATE TABLE "ADMIN"."LIVELABS_USERS_SKILL" (
+    "USER_ID" VARCHAR2(50) NOT NULL,
+    "SKILL" VARCHAR2(100) NOT NULL,
+    "EXPERIENCE_LEVEL" VARCHAR2(20) NOT NULL,
+    "CREATED_DATE" DATE DEFAULT SYSDATE,
+    "MONGO_ID" VARCHAR2(36) DEFAULT SYS_GUID() NOT NULL,
+    CHECK (experience_level IN ('BEGINNER', 'INTERMEDIATE', 'ADVANCED')),
+    CONSTRAINT "LIVELABS_USERS_SKILL_UNIQUE" UNIQUE ("USER_ID", "SKILL")
+);
+```
+
+**주요 특징**:
+- **3단계 경험 레벨**: BEGINNER, INTERMEDIATE, ADVANCED
+- **중복 방지**: 사용자당 동일 스킬 하나만 허용
+- **스킬 예시**: Oracle Database, SQL, Python, Java, Cloud Computing
+
+### 4. 📈 학습 진도 테이블 (USER_PROGRESS)
+
+**목적**: 워크샵 완료 진도 및 학습 이력 추적
+
+```sql
+CREATE TABLE "ADMIN"."USER_PROGRESS" (
+    "PROGRESS_ID" NUMBER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+    "USER_ID" VARCHAR2(50) NOT NULL,
+    "WORKSHOP_ID" NUMBER NOT NULL,
+    "STATUS" VARCHAR2(20) DEFAULT 'STARTED',
+    "COMPLETION_DATE" DATE,
+    "RATING" NUMBER(1,0),
+    "CREATED_DATE" DATE DEFAULT SYSDATE,
+    "MONGO_ID" VARCHAR2(36) DEFAULT LOWER(
+        REGEXP_REPLACE(
+            RAWTOHEX(SYS_GUID()),
+            '(.{8})(.{4})(.{4})(.{4})(.{12})',
+            '\1-\2-\3-\4-\5'
+        )
+    ) NOT NULL,
+    CHECK (status IN ('STARTED', 'COMPLETED')),
+    CHECK (rating BETWEEN 1 AND 5)
+);
+```
+
+**주요 특징**:
+- **자동 증가 ID**: `PROGRESS_ID` IDENTITY 컬럼
+- **상태 관리**: STARTED, COMPLETED 두 가지 상태
+- **평점 시스템**: 1-5점 평가 (NULL 허용)
+- **UUID 형식**: `MONGO_ID`를 표준 UUID 형식으로 생성
+
+### 5. 📰 블로그 포스트 테이블 (ATEAM_BLOG_POSTS)
+
+**목적**: A-Team 블로그 포스트 스크래핑 데이터
+
+```sql
+CREATE TABLE "ADMIN"."ATEAM_BLOG_POSTS" (
+    "ID" NUMBER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+    "BLOG_DATA" JSON,
+    "TITLE" VARCHAR2(500),
+    "WRITER" VARCHAR2(200),
+    "URL" VARCHAR2(1000),
+    "SCRAPED_AT" TIMESTAMP(6),
+    "CREATED_AT" TIMESTAMP(6) DEFAULT CURRENT_TIMESTAMP,
+    "UPDATED_AT" TIMESTAMP(6) DEFAULT CURRENT_TIMESTAMP,
+    "CONTENT_DATA" JSON,
+    "CONTENT_EXTRACTED" CHAR(1) DEFAULT 'N',
+    "CONTENT_EXTRACTED_AT" TIMESTAMP(6)
+);
+```
+
+**주요 특징**:
+- **JSON 저장**: `BLOG_DATA`, `CONTENT_DATA` 필드
+- **스크래핑 상태**: `CONTENT_EXTRACTED` 플래그
+- **타임스탬프**: 마이크로초 단위 정밀도
+
+---
+
+## 🔗 JSON Duality Views
+
+**목적**: Oracle Database 23ai의 JSON Duality Views를 통해 관계형 테이블을 JSON 문서로 접근할 수 있도록 지원합니다. MongoDB 호환 인터페이스를 제공하여 NoSQL과 SQL 양방향 데이터 액세스가 가능합니다.
+
+### 1. 📚 워크샵 JSON 뷰 (LIVELABS_WORKSHOPS_JSON2)
+**기능**: 워크샵 추가, 수정, ID별 조회를 MongoDB 인터페이스로 지원
+
+```sql
+CREATE OR REPLACE FORCE EDITIONABLE JSON RELATIONAL DUALITY VIEW "ADMIN"."LIVELABS_WORKSHOPS_JSON2" 
+DEFAULT COLLATION "USING_NLS_COMP" AS 
+SELECT JSON {
+  '_id'               : mongo_id,
   'id'                : id,
   'title'             : title,
   'description'       : description,
@@ -64,9 +173,14 @@ CREATE OR REPLACE FORCE EDITIONABLE JSON RELATIONAL DUALITY VIEW "ADMIN"."LIVELA
   'language'          : language
 }
 FROM admin.livelabs_workshops2
-  WITH INSERT UPDATE DELETE;
+WITH INSERT UPDATE DELETE;
+```
 
--- for add user, update user, or get userId by name via momgo db interface
+### 2. 👥 사용자 JSON 뷰 (LIVELABS_USERS_JSON)
+
+**기능**: 사용자 추가, 수정, 이름으로 사용자 ID 조회를 MongoDB 인터페이스로 지원
+
+```sql
 CREATE OR REPLACE JSON RELATIONAL DUALITY VIEW admin.livelabs_users_json AS
 SELECT JSON {
   '_id' : lu.mongo_id,
@@ -81,8 +195,13 @@ SELECT JSON {
 }
 FROM admin.livelabs_users lu
 WITH INSERT UPDATE DELETE;
+```
 
--- for add or update workshop's user progression(completion date, rating(1-5), status('STARTED','COMPLETED') via momgo db interface
+### 3. 📈 학습 진도 JSON 뷰 (USER_PROGRESS_JSON)
+
+**기능**: 워크샵 학습 진도 추가/수정 (완료일, 평점 1-5, 상태 'STARTED'/'COMPLETED')을 MongoDB 인터페이스로 지원
+
+```sql
 CREATE OR REPLACE JSON RELATIONAL DUALITY VIEW admin.user_progress_json AS
 SELECT JSON {
     '_id' : up.progress_id,
@@ -99,8 +218,13 @@ SELECT JSON {
 }
 FROM admin.user_progress up
 WITH INSERT UPDATE DELETE;
+```
 
--- for add or update user's skill, skill's experienceLevel(BEGINNER, INTERMEDIATE, ADVANCED) via momgo db interface
+### 4. 🎯 사용자 스킬 JSON 뷰 (USER_SKILLS_JSON)
+
+**기능**: 사용자 스킬 추가/수정, 경험 레벨 (BEGINNER, INTERMEDIATE, ADVANCED) 관리를 MongoDB 인터페이스로 지원
+
+```sql
 CREATE OR REPLACE JSON RELATIONAL DUALITY VIEW admin.user_skills_json AS
 SELECT JSON {
     '_id' : s.mongo_id,
@@ -111,11 +235,87 @@ SELECT JSON {
 }
 FROM admin.livelabs_users_skill s
 WITH INSERT UPDATE DELETE;
-
 ```
 
-## JSON Duality View's value exmaple
+### 5. 👤 통합 사용자 프로필 JSON 뷰 (USER_PROFILE_JSON)
+
+**기능**: 사용자 정보와 스킬을 중첩 JSON으로 통합하여 제공
+
+```sql
+CREATE OR REPLACE JSON RELATIONAL DUALITY VIEW admin.user_profile_json AS
+SELECT JSON {
+  '_id'     : u.mongo_id,
+  'userId'  : u.user_id,
+  'name'    : u.name,
+  'email'   : u.email,
+  'created' : TO_CHAR(u.created_date, 'YYYY-MM-DD"T"HH24:MI:SS'),
+  'skills'  :
+    [ SELECT JSON {
+        'skillName'       : s.skill,
+        'experienceLevel' : s.experience_level,
+        'skillAdded'      : TO_CHAR(s.created_date, 'YYYY-MM-DD')
+      }
+      FROM admin.livelabs_users_skill s
+      WHERE s.user_id = u.user_id
+    ]
+}
+FROM admin.livelabs_users u
+WITH INSERT UPDATE DELETE;
 ```
+
+---
+
+## 📋 데이터 예시
+
+### 사용자 JSON 뷰 예시
+```json
+{
+  "_id": "68a54c68ca900cad0774cd04",
+  "userId": "87e58c9b-d458-47bc-9a60-8a1e487f678f",
+  "name": "류현재",
+  "email": "hyun-jae.ryu@oracle.com",
+  "createdDate": "2025-08-20T04:17:44",
+  "_metadata": {
+    "etag": "C985EF69663C1DDEA6638F23542CCEE0",
+    "asof": "000028D46A746A39"
+  }
+}
+```
+
+### 학습 진도 JSON 뷰 예시
+```json
+{
+  "_id": "68a549daca900cad0774cd03",
+  "userId": "59ba9924-369b-4285-ae77-536092505cf2",
+  "workshopId": 649,
+  "status": "COMPLETED",
+  "completionDate": null,
+  "rating": 5,
+  "created": "2025-08-20T04:06:50",
+  "_metadata": {
+    "etag": "BAAA049684714BF0F887839F5DEBFE75",
+    "asof": "000028D46A75542A"
+  }
+}
+```
+
+### 사용자 스킬 JSON 뷰 예시
+```json
+{
+  "_id": "68a54d5bca900cad0774cd05",
+  "userId": "87e58c9b-d458-47bc-9a60-8a1e487f678f",
+  "skillName": "Oracle Database",
+  "experienceLevel": "ADVANCED",
+  "skillAdded": "2025-08-20T04:21:47",
+  "_metadata": {
+    "etag": "39359D75D11B84CA4EC99B7E121AFA22",
+    "asof": "000028D46A760D6F"
+  }
+}
+```
+
+### 워크샵 JSON 뷰 예시
+```json
 {
   "title": "Get Started with Oracle Exadata Database Service @Azure",
   "url": "/pls/apex/r/dbpm/livelabs/view-workshop?wid=4010&clear=RR,180&session=11192223075513",
@@ -149,3 +349,153 @@ WITH INSERT UPDATE DELETE;
   "text_content": "Introduction\nAbout this Workshop\n\nThis hands-on workshop provides users with step-by-step instructions on provisioning Oracle Exadata Database @Azure. It provides detailed technical steps about pre-requisites steps and preparation needed for creating an Oracle Exadata infrastructure and Oracle Exadata VM Cluster and then create CDBs and PDBs.\n\nOracle Exadata Database @Azure helps to run Oracle Database natively in Microsoft Azure with the highest levels of performance, availability, security, and cost-effectiveness available in the cloud.\n\nEstimated Workshop Time: 2 Hours 30 Minutes\n\nWorkshop Objectives\n\nIn this workshop, you will learn how to:\n\nStep 1. Create Resource Group in Azure Cloud\nStep 2. Create VNet in Azure Cloud\nStep 3. Add Subnet and Delegate to the Oracle Database @Azure service\nStep 4. Create Oracle Exadata Infrastructure resource through Microsoft Azure Portal\nStep 5. Create Oracle Exadata VM Cluster resource through Microsoft Azure Portal\nStep 6. Create Oracle Database on an Exadata Database Service @Azure\nPrerequisites\nAn Oracle Free Tier, Always Free, Paid or LiveLabs Cloud Account\nFamiliarity with Oracle Cloud Infrastructure (OCI) is helpful\nBasic knowledge about DB @Azure concepts is helpful\nFamiliarity with Oracle Exadata Database is helpful\nCollapse All Tasks\nLearn More\nYou can find more information about Oracle Exadata Database @Azure here\nTechnical support\n\nFor all OCI related issues, Oracle Cloud Support is the first line of support. For any technical issues related to Oracle Exadata Database @Azure, please sign in to the OCI Console, then click the life raft icon.\n\nFor all Azure related issues and questions. Get help in the Help + support section of the Azure portal.\n\nAcknowledgements\nAuthor - Sanjay Rahane, Principal Cloud Architect, North America Cloud Engineering\nContributors - Bhaskar Sudarshan, Director, North America Cloud Engineering\nLast Updated By/Date - Sanjay Rahane, August 2024"
 }
 ```
+
+### 통합 사용자 프로필 JSON 뷰 예시
+```json
+{
+  "_id": "68a54c68ca900cad0774cd04",
+  "userId": "87e58c9b-d458-47bc-9a60-8a1e487f678f",
+  "name": "류현재",
+  "email": "hyun-jae.ryu@oracle.com",
+  "created": "2025-08-20\\T\\04:17:44",
+  "skills": [
+    {
+      "skillName": "Oracle Database",
+      "experienceLevel": "ADVANCED",
+      "skillAdded": "2025-08-20"
+    }
+  ],
+  "_metadata": {
+    "etag": "28A710BE1FC7BD124CD0057A5B5C07B4",
+    "asof": "000028D46A8C5B3B"
+  }
+}
+```
+
+---
+
+## 🤖 Oracle SELECT AI 설정
+
+**목적**: Oracle Database 23ai의 SELECT AI 기능을 활용하여 자연어로 데이터베이스를 쿼리할 수 있도록 설정합니다.
+
+### AI 프로필 생성 및 설정
+
+#### 1. Cohere 자격증명 생성
+```sql
+-- create credential
+BEGIN 
+  DBMS_CLOUD.CREATE_CREDENTIAL(
+    credential_name => 'COHERE_CRED',
+    user_ocid => 'ocid1.user.oc1..aaaaaaaabezhmtxdqakpleu4mrcuivzn75hsi3wvkyn6wmbeg7afg6kfqnnq',
+    tenancy_ocid => 'ocid1.tenancy.oc1..aaaaaaaa6ma7kq3bsif76uzqidv22cajs3fpesgpqmmsgxihlbcemkklrsqa',
+    private_key => '-----BEGIN PRIVATE KEY-----
+MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQC/woorARth/0i+
+tyXiE4JW5soaNRqIAHKT3uiy8rZakYAXc1vPr/s2NP7cIHZsyNcfhjCz4EEZXHFn
+lIE/jRBx2gqM+V+4zs3S81iSMvFe4KH+Kc9kdDvZpRc8br4nhfo1Sj9CJZJomiYr
+epvIP1YLmelW5WDGJghCbnqvulqatg5wzTLmMp9QixXdPUEHWAKBhUP59ya+Rdcn
+oMNdO3lrrtO434sLI6k2Sx3yTcz8DynbfGXfLZjMYua+VHM4ZSIqGmI85sDu0Ws9
+xB7kDz62Xz+3kk2rtROapMfrhdHR4l1fZE6PZSIOBAkPYTVfZuj4tI0HuIoGvLtd
+/pGmGpBBAgMBAAECggEAFGsoN/PMWQMcOX2KPcBOzcbRoJiEuJRWnvb6f3p/bxWk
+5mpYzXy7Qr6CIEmfHo6EtJU++JpRiDwrEajTGeOhC4R4gOIZXpX7veF+TgP5Zl1E
+Nop4bEWBrXdKKfvPSOlX1waOxZH3XObEF3dc4OXYmU/kVCXEyBia4sr9ipps5SH7
+z8pFAmZV6m5uPL9kBi9HA8J60J9mdp5UxP+XQSTqsTOKHBsnbdANG6B/OcYOM92b
+UxQ5nNDXUy5nE60g1AZfMrBQMW53F/hycjMtGriXd6BbUgZuMuKqYXr+e4a7LoPx
+hyEi2nrcqY/IZiR3bNaIg6ZimxL/BrEBPSxpFlQtKQKBgQD6Go1jPeuDzAziVRUA
+9ExO7sw6YcIgM8uP7izkyWa5jIlC7Yqi11lN4GCofcoqjO1bFpHYvOpKfN49XGbn
+dzimvC982Ml3HJNwbzlrFDg9B+JK6ikhyKkf+bg+QzOBQ/sG1gNX59uMyymKvD4i
+B3m6gmxTsKVC5YLk5y51niNwGQKBgQDER92oxkJtgw8JJAMm623KCDJfyUY2uvIc
+85UbEQxWZg48h1Ookbj2QgrpcUHdO8abY9UwbOUpvogdQx+gAhSBS/TLzbuyYmS0
+GvTNSLaqqEf1OVi1yX3WwvL31IvdjDdWNCwiLAxzYYh7RgNtikTH6+Il/+UTBXkH
+oP/fZpkGaQKBgFad5YOOSUd+3qNwBfMrqFXZ2/8IJjwS1BgHy6J8ocf3BP6Z196n
+qDURVUhlMCPmZLmcKmyemKGtdyZXHwhgwMz19ZhOWA+ZZPKWgpM0EHoKhfOd/xrF
+LNV3Hbjqeyb0jTaD3eqO0PmEzuFOalJMtnrCepPNZJ6zb86oxe1UFD/ZAoGBAKL9
+HmapA75Wh2TKv8dQ1qFevx3lUGXgRW6fIqEQPhN8ubOvmFuxbksnulHxV4Uzvw+I
+Dh8hPga1Dehmtdsz/v0DKusWExflNsSMYd4Z1H3QMbjDfxOtls6AoiwEFoTJi6YM
+ut1BgLFLO39KO0x59fWhvfBaF0n9UGxyWCeV1dqJAoGBANKKgSA5mahB5LfbShBa
+4zpnh+4mybJnj4PLBhWNczKUhPU96wL25A3lMZNZX1/eiDZUhDNpmUNl/ZJ0NR2t
+kdAo4FgzW56PbMp+oUZ+3HXwbYazI0HM7OjLMGr4WHAKkd3MaRVhmHPSaO5Npoei
+wdeV3Pt78p0wmDqZzfAVWR0b
+-----END PRIVATE KEY-----',
+    fingerprint => '19:00:36:28:f0:cf:e8:ff:3f:f2:ef:c3:15:10:64:26'
+  );
+END;
+```
+
+#### 2. AI 프로필 생성
+```sql
+BEGIN
+  DBMS_CLOUD_AI.CREATE_PROFILE(
+    profile_name => 'DISCOVERYDAY_AI_PROFILE',
+    attributes   => '{
+      "provider": "openai",
+      "credential_name": "OPENAI_CRED",
+      "object_list": [
+        {"owner": "ADMIN", "name": "LIVELABS_USERS"},
+        {"owner": "ADMIN", "name": "LIVELABS_USERS_SKILL"},
+        {"owner": "ADMIN", "name": "USER_PROGRESS"},
+        {"owner": "ADMIN", "name": "AI_RECOMMENDATIONS"},
+        {"owner": "ADMIN", "name": "LIVELABS_WORKSHOPS2"}
+      ]
+    }'
+  );
+END;
+```
+
+#### 3. AI 프로필 활성화
+```sql
+BEGIN
+    DBMS_CLOUD_AI.SET_PROFILE('DISCOVERYDAY_AI_PROFILE');
+END;
+```
+
+### 사용 예시
+
+#### 자연어 쿼리 실행
+```sql
+-- Oracle Autonomous Database 관련 워크샵 검색
+SELECT DBMS_CLOUD_AI.GENERATE(
+    prompt       => 'what workshops are about oracle autonomous database',
+    profile_name => 'DISCOVERYDAY_AI_PROFILE',
+    action       => 'chat')
+FROM dual;
+
+-- Python 개발자 조회
+SELECT AI narrate Who are the Python developers?;
+```
+
+**결과 예시**:
+```
+-- Python 개발자 목록:
+- 개발자명: 고정민
+```
+
+#### 벡터 임베딩 생성
+```sql
+DECLARE
+  v VECTOR;
+BEGIN
+  v := DBMS_VECTOR.UTL_TO_EMBEDDING(
+         'Oracle APEX lets you build web apps fast.',
+         JSON('{
+           "provider": "cohere",
+           "credential_name": "COHERE_CRED",
+           "model": "cohere.embed-v4.0"
+         }')
+       );
+  
+  DBMS_OUTPUT.PUT_LINE('Embedding created successfully.');
+END;
+```
+
+### AI 프로필 조회
+```sql
+-- 등록된 AI 프로필 확인
+SELECT * FROM USER_CLOUD_AI_PROFILES;
+
+-- 특정 프로필 속성 확인
+SELECT * FROM USER_CLOUD_AI_PROFILE_ATTRIBUTES 
+WHERE profile_name = 'DISCOVERYDAY_AI_PROFILE';
+```
+
+
+
