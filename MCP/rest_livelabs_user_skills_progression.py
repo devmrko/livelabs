@@ -93,7 +93,7 @@ async def get_user(name: Optional[str] = None, email: Optional[str] = None) -> D
             name = None
     
     try:
-        users_collection = mongo_manager.db["livelabs_users_json"]
+        users_collection = mongo_manager.db["user_profile_json"]
         query = {}
         if name: query["name"] = name
         if email: query["email"] = email

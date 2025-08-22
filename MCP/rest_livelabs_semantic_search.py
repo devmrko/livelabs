@@ -65,7 +65,7 @@ async def search_workshops(query: str, top_k: int = 10) -> Dict[str, Any]:
                 "difficulty": result.get("difficulty", ""),
                 "category": result.get("category", ""),
                 "duration": result.get("duration", ""),
-                "content": result.get("content", ""),
+                "content": result.get("text_content", ""),
                 "similarity": result.get("similarity", 0.0),
                 "url": result.get("url", "")
             })
