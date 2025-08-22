@@ -389,32 +389,7 @@ BEGIN
     user_ocid => 'ocid1.user.oc1..aaaaaaaabezhmtxdqakpleu4mrcuivzn75hsi3wvkyn6wmbeg7afg6kfqnnq',
     tenancy_ocid => 'ocid1.tenancy.oc1..aaaaaaaa6ma7kq3bsif76uzqidv22cajs3fpesgpqmmsgxihlbcemkklrsqa',
     private_key => '-----BEGIN PRIVATE KEY-----
-MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQC/woorARth/0i+
-tyXiE4JW5soaNRqIAHKT3uiy8rZakYAXc1vPr/s2NP7cIHZsyNcfhjCz4EEZXHFn
-lIE/jRBx2gqM+V+4zs3S81iSMvFe4KH+Kc9kdDvZpRc8br4nhfo1Sj9CJZJomiYr
-epvIP1YLmelW5WDGJghCbnqvulqatg5wzTLmMp9QixXdPUEHWAKBhUP59ya+Rdcn
-oMNdO3lrrtO434sLI6k2Sx3yTcz8DynbfGXfLZjMYua+VHM4ZSIqGmI85sDu0Ws9
-xB7kDz62Xz+3kk2rtROapMfrhdHR4l1fZE6PZSIOBAkPYTVfZuj4tI0HuIoGvLtd
-/pGmGpBBAgMBAAECggEAFGsoN/PMWQMcOX2KPcBOzcbRoJiEuJRWnvb6f3p/bxWk
-5mpYzXy7Qr6CIEmfHo6EtJU++JpRiDwrEajTGeOhC4R4gOIZXpX7veF+TgP5Zl1E
-Nop4bEWBrXdKKfvPSOlX1waOxZH3XObEF3dc4OXYmU/kVCXEyBia4sr9ipps5SH7
-z8pFAmZV6m5uPL9kBi9HA8J60J9mdp5UxP+XQSTqsTOKHBsnbdANG6B/OcYOM92b
-UxQ5nNDXUy5nE60g1AZfMrBQMW53F/hycjMtGriXd6BbUgZuMuKqYXr+e4a7LoPx
-hyEi2nrcqY/IZiR3bNaIg6ZimxL/BrEBPSxpFlQtKQKBgQD6Go1jPeuDzAziVRUA
-9ExO7sw6YcIgM8uP7izkyWa5jIlC7Yqi11lN4GCofcoqjO1bFpHYvOpKfN49XGbn
-dzimvC982Ml3HJNwbzlrFDg9B+JK6ikhyKkf+bg+QzOBQ/sG1gNX59uMyymKvD4i
-B3m6gmxTsKVC5YLk5y51niNwGQKBgQDER92oxkJtgw8JJAMm623KCDJfyUY2uvIc
-85UbEQxWZg48h1Ookbj2QgrpcUHdO8abY9UwbOUpvogdQx+gAhSBS/TLzbuyYmS0
-GvTNSLaqqEf1OVi1yX3WwvL31IvdjDdWNCwiLAxzYYh7RgNtikTH6+Il/+UTBXkH
-oP/fZpkGaQKBgFad5YOOSUd+3qNwBfMrqFXZ2/8IJjwS1BgHy6J8ocf3BP6Z196n
-qDURVUhlMCPmZLmcKmyemKGtdyZXHwhgwMz19ZhOWA+ZZPKWgpM0EHoKhfOd/xrF
-LNV3Hbjqeyb0jTaD3eqO0PmEzuFOalJMtnrCepPNZJ6zb86oxe1UFD/ZAoGBAKL9
-HmapA75Wh2TKv8dQ1qFevx3lUGXgRW6fIqEQPhN8ubOvmFuxbksnulHxV4Uzvw+I
-Dh8hPga1Dehmtdsz/v0DKusWExflNsSMYd4Z1H3QMbjDfxOtls6AoiwEFoTJi6YM
-ut1BgLFLO39KO0x59fWhvfBaF0n9UGxyWCeV1dqJAoGBANKKgSA5mahB5LfbShBa
-4zpnh+4mybJnj4PLBhWNczKUhPU96wL25A3lMZNZX1/eiDZUhDNpmUNl/ZJ0NR2t
-kdAo4FgzW56PbMp+oUZ+3HXwbYazI0HM7OjLMGr4WHAKkd3MaRVhmHPSaO5Npoei
-wdeV3Pt78p0wmDqZzfAVWR0b
+
 -----END PRIVATE KEY-----',
     fingerprint => '19:00:36:28:f0:cf:e8:ff:3f:f2:ef:c3:15:10:64:26'
   );
